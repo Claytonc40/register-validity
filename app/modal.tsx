@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useProdutos } from "./contexts/ProdutosContext";
 
 // Remova a importação do TextRecognition por enquanto para resolver o erro
 // import * as TextRecognition from "expo-text-recognition";
@@ -211,12 +212,13 @@ export default function CameraModal() {
   const [image, setImage] = useState<string | null>(null);
   const [recognizedText, setRecognizedText] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [produtos, setProdutos] = useState<ProdutoAlerta[]>([]);
   const [showManualInput, setShowManualInput] = useState(false);
   const [tempValidade, setTempValidade] = useState<string | null>(null);
   const [manualProdutoNome, setManualProdutoNome] = useState("");
 
-  const salvarProduto = (nome: string, validade: string) => {
+  const { adicionarProduto } = useProdutos();
+
+  const salvarProduto = async (nome: string, validade: string) => {
     const novoProduto: ProdutoAlerta = {
       id: Date.now().toString(),
       nome,
@@ -224,7 +226,7 @@ export default function CameraModal() {
       dataRegistro: new Date().toISOString(),
     };
 
-    setProdutos((prevProdutos) => [...prevProdutos, novoProduto]);
+    await adicionarProduto(novoProduto);
     Alert.alert(
       "Produto Registrado",
       `O produto ${nome} foi registrado com sucesso!\nValidade: ${validade}`,
@@ -339,27 +341,6 @@ export default function CameraModal() {
     }
   };
 
-  // Renderiza a lista de produtos registrados
-  const renderProdutos = () => {
-    if (produtos.length === 0) {
-      return null;
-    }
-
-    return (
-      <View style={styles.listContainer}>
-        <Text style={styles.listHeader}>Produtos Registrados:</Text>
-        {produtos.map((produto) => (
-          <View key={produto.id} style={styles.produtoItem}>
-            <Text style={styles.produtoNome}>📦 {produto.nome}</Text>
-            <Text style={styles.produtoValidade}>
-              📅 Validade: {produto.validade}
-            </Text>
-          </View>
-        ))}
-      </View>
-    );
-  };
-
   return (
     <ScrollView style={styles.container}>
       <Stack.Screen
@@ -467,8 +448,6 @@ export default function CameraModal() {
         </View>
       )}
 
-      {renderProdutos()}
-
       <View style={{ height: 30 }} />
     </ScrollView>
   );
@@ -477,13 +456,21 @@ export default function CameraModal() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#f8f9fa",
   },
   imageContainer: {
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
-    marginTop: 20,
+    padding: 16,
+    marginTop: 16,
+    backgroundColor: "#fff",
+    marginHorizontal: 16,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   image: {
     width: "100%",
@@ -493,151 +480,157 @@ const styles = StyleSheet.create({
   placeholder: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#e0e0e0",
+    backgroundColor: "#f1f3f5",
     width: "100%",
     height: 300,
     borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#e9ecef",
   },
   placeholderText: {
     marginTop: 16,
     fontSize: 16,
-    color: "#666",
+    color: "#868e96",
+    fontWeight: "500",
   },
   buttonContainer: {
     flexDirection: "row",
     justifyContent: "space-around",
-    padding: 20,
+    padding: 16,
+    marginTop: 8,
   },
   button: {
-    backgroundColor: "#2196F3",
+    backgroundColor: "#228be6",
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
     width: "45%",
     flexDirection: "row",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   buttonText: {
     color: "white",
-    fontWeight: "bold",
+    fontWeight: "600",
     marginLeft: 8,
+    fontSize: 16,
   },
   useButton: {
-    backgroundColor: "#4CAF50",
-    margin: 20,
+    backgroundColor: "#40c057",
+    margin: 16,
     padding: 16,
     borderRadius: 12,
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   useButtonText: {
     color: "white",
-    fontWeight: "bold",
+    fontWeight: "600",
     fontSize: 16,
   },
   textContainer: {
-    margin: 20,
+    margin: 16,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   textHeader: {
     fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 10,
+    fontWeight: "600",
+    marginBottom: 12,
+    color: "#343a40",
   },
   textBox: {
-    backgroundColor: "white",
-    padding: 15,
+    backgroundColor: "#f8f9fa",
+    padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#e9ecef",
   },
   extractedText: {
     fontSize: 16,
     lineHeight: 24,
-  },
-  listContainer: {
-    margin: 20,
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  listHeader: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 10,
-    color: "#333",
-  },
-  produtoItem: {
-    backgroundColor: "#f8f8f8",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#eee",
-  },
-  produtoNome: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 4,
-    color: "#333",
-  },
-  produtoValidade: {
-    fontSize: 14,
-    color: "#666",
+    color: "#495057",
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     justifyContent: "center",
     alignItems: "center",
   },
   modalContent: {
     backgroundColor: "white",
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 16,
+    padding: 24,
     width: "90%",
     maxWidth: 400,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
   },
   modalHeader: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 15,
-    color: "#333",
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 16,
+    color: "#343a40",
     textAlign: "center",
   },
   modalText: {
     fontSize: 16,
-    marginBottom: 15,
-    color: "#666",
+    marginBottom: 16,
+    color: "#495057",
+    lineHeight: 22,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 12,
+    borderColor: "#dee2e6",
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
     marginBottom: 20,
+    backgroundColor: "#f8f9fa",
   },
   modalButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
+    marginTop: 8,
   },
   modalButton: {
     flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    marginHorizontal: 5,
+    padding: 14,
+    borderRadius: 12,
+    marginHorizontal: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   cancelButton: {
-    backgroundColor: "#ff6b6b",
+    backgroundColor: "#fa5252",
   },
   saveButton: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#40c057",
   },
   modalButtonText: {
     color: "white",
     textAlign: "center",
-    fontWeight: "bold",
+    fontWeight: "600",
     fontSize: 16,
   },
 });

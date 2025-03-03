@@ -1,32 +1,201 @@
-import React from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import ProductList from "../../components/ProductList";
-import ProductValidityForm from "../../components/ProductValidityForm";
-import { useProducts } from "../../hooks/useProducts";
+import { FontAwesome } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import React, { useEffect, useState } from "react";
+import {
+  Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useProdutos } from "../contexts/ProdutosContext";
 
 export default function HomeScreen() {
-  const { products, loading, addProduct, removeProduct } = useProducts();
+  const { produtos, carregarProdutos, removerProduto, adicionarProduto } =
+    useProdutos();
+  const [showModal, setShowModal] = useState(false);
+  const [nomeProduto, setNomeProduto] = useState("");
+  const [dataValidade, setDataValidade] = useState("");
+  const [date, setDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
-  const handleSaveProduct = (product: { name: string; expiryDate: Date }) => {
-    addProduct(product.name, product.expiryDate);
+  useEffect(() => {
+    carregarProdutos();
+  }, []);
+
+  const formatarData = (data: Date): string => {
+    const dia = String(data.getDate()).padStart(2, "0");
+    const mes = String(data.getMonth() + 1).padStart(2, "0");
+    const ano = data.getFullYear();
+    return `${dia}/${mes}/${ano}`;
+  };
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setDate(selectedDate);
+      setDataValidade(formatarData(selectedDate));
+    }
+  };
+
+  const handleSaveManual = () => {
+    if (!nomeProduto.trim() || !dataValidade.trim()) {
+      Alert.alert("Erro", "Por favor, preencha todos os campos");
+      return;
+    }
+
+    const novoProduto = {
+      id: Date.now().toString(),
+      nome: nomeProduto.trim(),
+      validade: dataValidade,
+      dataRegistro: new Date().toISOString(),
+    };
+
+    adicionarProduto(novoProduto);
+    setShowModal(false);
+    setNomeProduto("");
+    setDataValidade("");
+    setDate(new Date());
+  };
+
+  const calcularDiasRestantes = (dataValidade: string) => {
+    const hoje = new Date();
+    const validade = new Date(dataValidade.split("/").reverse().join("-"));
+    const diferenca = validade.getTime() - hoje.getTime();
+    return Math.ceil(diferenca / (1000 * 3600 * 24));
+  };
+
+  const getStatusColor = (diasRestantes: number) => {
+    if (diasRestantes < 0) return "#ff6b6b";
+    if (diasRestantes <= 30) return "#ffd93d";
+    return "#4CAF50";
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Controle de Validade</Text>
-
-      <ProductValidityForm onSave={handleSaveProduct} />
-
-      <Text style={styles.subtitle}>Produtos Cadastrados</Text>
-
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0000ff" />
-          <Text style={styles.loadingText}>Carregando produtos...</Text>
+      <ScrollView>
+        <View style={styles.header}>
+          <Text style={styles.title}>Produtos Cadastrados</Text>
         </View>
-      ) : (
-        <ProductList products={products} onDelete={removeProduct} />
-      )}
+
+        {produtos.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <FontAwesome name="inbox" size={50} color="#ccc" />
+            <Text style={styles.emptyText}>Nenhum produto cadastrado</Text>
+            <Text style={styles.emptySubtext}>
+              Tire uma foto do produto para começar a monitorar
+            </Text>
+          </View>
+        ) : (
+          produtos.map((produto) => {
+            const diasRestantes = calcularDiasRestantes(produto.validade);
+            const statusColor = getStatusColor(diasRestantes);
+
+            return (
+              <View key={produto.id} style={styles.produtoCard}>
+                <View
+                  style={[
+                    styles.statusIndicator,
+                    { backgroundColor: statusColor },
+                  ]}
+                />
+                <View style={styles.produtoInfo}>
+                  <Text style={styles.produtoNome}>{produto.nome}</Text>
+                  <Text style={styles.produtoValidade}>
+                    Validade: {produto.validade}
+                  </Text>
+                  <Text style={[styles.statusText, { color: statusColor }]}>
+                    {diasRestantes < 0
+                      ? "Produto vencido"
+                      : `${diasRestantes} dias restantes`}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={() => removerProduto(produto.id)}
+                >
+                  <FontAwesome name="trash" size={20} color="#ff6b6b" />
+                </TouchableOpacity>
+              </View>
+            );
+          })
+        )}
+      </ScrollView>
+
+      {/* Botão flutuante para adicionar manualmente */}
+      <TouchableOpacity
+        style={styles.fabButton}
+        onPress={() => setShowModal(true)}
+      >
+        <FontAwesome name="plus" size={16} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Modal para adicionar produto manualmente */}
+      <Modal
+        visible={showModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalHeader}>Adicionar Produto</Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Nome do Produto"
+              value={nomeProduto}
+              onChangeText={setNomeProduto}
+            />
+
+            <TouchableOpacity
+              style={[styles.input, styles.dateInput]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text
+                style={dataValidade ? styles.dateText : styles.datePlaceholder}
+              >
+                {dataValidade || "Selecione a Data de Validade"}
+              </Text>
+              <FontAwesome name="calendar" size={20} color="#666" />
+            </TouchableOpacity>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display="default"
+                onChange={handleDateChange}
+                minimumDate={new Date()}
+              />
+            )}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setShowModal(false);
+                  setNomeProduto("");
+                  setDataValidade("");
+                  setDate(new Date());
+                }}
+              >
+                <Text style={styles.modalButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleSaveManual}
+              >
+                <Text style={styles.modalButtonText}>Salvar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -34,26 +203,170 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+    backgroundColor: "#f5f5f5",
+  },
+  header: {
+    padding: 20,
+    backgroundColor: "white",
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 24,
-    textAlign: "center",
+    color: "#333",
   },
-  subtitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginVertical: 16,
-  },
-  loadingContainer: {
+  emptyContainer: {
     flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+    marginTop: 100,
+  },
+  emptyText: {
+    fontSize: 18,
+    color: "#666",
+    marginTop: 10,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: "#999",
+    textAlign: "center",
+    marginTop: 5,
+  },
+  produtoCard: {
+    backgroundColor: "white",
+    marginHorizontal: 15,
+    marginTop: 15,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 15,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  statusIndicator: {
+    width: 8,
+    height: "100%",
+    borderRadius: 4,
+    marginRight: 15,
+  },
+  produtoInfo: {
+    flex: 1,
+  },
+  produtoNome: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 4,
+  },
+  produtoValidade: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 4,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  deleteButton: {
+    padding: 10,
+  },
+  // Estilos do botão flutuante
+  fabButton: {
+    position: "absolute",
+    right: 20,
+    bottom: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#228be6",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  // Estilos do modal
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     justifyContent: "center",
     alignItems: "center",
   },
-  loadingText: {
-    marginTop: 16,
+  modalContent: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 24,
+    width: "90%",
+    maxWidth: 400,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  modalHeader: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 16,
+    color: "#343a40",
+    textAlign: "center",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#dee2e6",
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
+    marginBottom: 16,
+    backgroundColor: "#f8f9fa",
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 12,
+    marginHorizontal: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  cancelButton: {
+    backgroundColor: "#fa5252",
+  },
+  saveButton: {
+    backgroundColor: "#40c057",
+  },
+  modalButtonText: {
+    color: "white",
+    textAlign: "center",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  dateInput: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingRight: 12,
+  },
+  dateText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  datePlaceholder: {
+    fontSize: 16,
+    color: "#999",
   },
 });
