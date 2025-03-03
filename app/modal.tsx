@@ -20,102 +20,182 @@ import {
 import MlkitOcr from "react-native-mlkit-ocr";
 
 // Adicione estas funções auxiliares antes do componente
+const converterMes = (mesTexto: string): string => {
+  const meses: { [key: string]: string } = {
+    JAN: "01",
+    FEV: "02",
+    MAR: "03",
+    ABR: "04",
+    MAI: "05",
+    JUN: "06",
+    JUL: "07",
+    AGO: "08",
+    SET: "09",
+    OUT: "10",
+    NOV: "11",
+    DEZ: "12",
+  };
+  return meses[mesTexto.toUpperCase()] || "01";
+};
+
 const extrairData = (texto: string): string | null => {
-  // Padrões comuns de data, incluindo anos com 3 dígitos
-  const padroes = [
-    /(\d{2})\/(\d{2})\/(\d{4})/,           // dd/mm/yyyy
-    /(\d{2})\/(\d{2})\/(\d{3})/,           // dd/mm/yyy (formato incompleto)
-    /(\d{2})\.(\d{2})\.(\d{4})/,           // dd.mm.yyyy
-    /(\d{2})\-(\d{2})\-(\d{4})/,           // dd-mm-yyyy
-    /VALIDADE[.: ]+(\d{2})[\/-](\d{2})[\/-](\d{3,4})/i,  // VALIDADE dd/mm/yyy(y)
-    /VAL[.: ]+(\d{2})[\/-](\d{2})[\/-](\d{3,4})/i,       // VAL dd/mm/yyy(y)
-    /VENC[.: ]+(\d{2})[\/-](\d{2})[\/-](\d{3,4})/i       // VENC dd/mm/yyy(y)
+  // Padrões comuns de data com rótulos
+  const padroesComRotulo = [
+    // Formato dd/MMM/yy
+    /VAL:?\s*(\d{2})\/([A-Za-z]{3})\/(\d{2})/i, // VAL: dd/MMM/yy
+    /VENC\.?:?\s*(\d{2})\/([A-Za-z]{3})\/(\d{2})/i, // VENC: dd/MMM/yy
+    /VAL\.?\/VENC\.?:?\s*(\d{2})\/([A-Za-z]{3})\/(\d{2})/i, // VAL/VENC: dd/MMM/yy
+    // Formatos numéricos
+    /DATA DE VENCIMENTO:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i, // DATA DE VENCIMENTO: dd/mm/yyyy
+    /VAL\.?\/VENC\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i, // VAL/VENC: dd/mm/yyyy
+    /VENC\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i, // VENC: dd/mm/yyyy
+    /VAL\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i, // VAL: dd/mm/yyyy
+    /VALIDADE:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i, // VALIDADE: dd/mm/yyyy
   ];
 
-  for (const padrao of padroes) {
+  // Primeiro tenta encontrar datas com rótulos
+  for (const padrao of padroesComRotulo) {
     const match = texto.match(padrao);
-    if (match) {
-      if (match.length === 4) {
-        let ano = match[3];
-        // Se o ano tem 3 dígitos, assume que é 2023, 2024, etc.
-        if (ano.length === 3) {
-          ano = '202' + ano[2];
+    if (match && match.length === 4) {
+      // Se o segundo grupo é um mês em texto
+      if (isNaN(Number(match[2]))) {
+        const mes = converterMes(match[2]);
+        const ano = match[3].length === 2 ? "20" + match[3] : match[3];
+        return `${match[1]}/${mes}/${ano}`;
+      }
+      return `${match[1]}/${match[2]}/${match[3]}`;
+    }
+  }
+
+  // Se não encontrou com rótulos, procura por datas soltas
+  const padroesData = [
+    /(\d{2})[\/-]([A-Za-z]{3})[\/-](\d{2})/i, // dd/MMM/yy
+    /(\d{2})[\/-](\d{2})[\/-](\d{4})/, // dd/mm/yyyy
+  ];
+
+  const linhas = texto.split("\n");
+  for (const linha of linhas) {
+    for (const padrao of padroesData) {
+      const match = linha.match(padrao);
+      if (match && match.length === 4) {
+        if (
+          linha.toLowerCase().includes("val") ||
+          linha.toLowerCase().includes("venc") ||
+          linha.toLowerCase().includes("validade")
+        ) {
+          // Se o segundo grupo é um mês em texto
+          if (isNaN(Number(match[2]))) {
+            const mes = converterMes(match[2]);
+            const ano = match[3].length === 2 ? "20" + match[3] : match[3];
+            return `${match[1]}/${mes}/${ano}`;
+          }
+          return `${match[1]}/${match[2]}/${match[3]}`;
         }
-        return `${match[1]}/${match[2]}/${ano}`;
       }
     }
   }
+
   return null;
 };
 
 const extrairProduto = (texto: string): string | null => {
-  const linhas = texto.split('\n');
-  
-  // Procura por linhas que podem conter informações do produto
-  const linhasProduto = linhas.filter(linha => {
-    const ehData = /\d{2}[\/-]\d{2}[\/-]\d{3,4}/.test(linha);
-    const ehCodigo = /^[0-9\-\/]+$/.test(linha.trim());
-    const palavrasIgnoradas = ['VAL', 'VENC', 'VALIDADE', 'LOTE', 'FABRICAÇÃO', 'PREPARADO', 'USAR A PARTIR'];
-    
-    return !ehData && !ehCodigo && !palavrasIgnoradas.some(p => linha.toUpperCase().includes(p));
-  });
+  const linhas = texto.split("\n");
 
-  // Combina as primeiras linhas que parecem ser do produto
-  const produtoCompleto = linhasProduto
-    .slice(0, 2) // Pega até 2 linhas para formar o nome do produto
-    .map(linha => linha.trim())
-    .filter(linha => linha.length > 0)
-    .join(' - ');
+  // Lista de palavras-chave que indicam nome de produto
+  const palavrasChaveProduto = [
+    "TIRAS",
+    "MOLHO",
+    "COBERTURA",
+    "MAIONESE",
+    "MAYONESA",
+    "FEIJÃO",
+    "FEIJAO",
+    "PRETO",
+  ];
 
-  return produtoCompleto || null;
-};
+  // Palavras a serem ignoradas
+  const palavrasIgnoradas = [
+    "LOTE",
+    "FAB",
+    "FABRICAÇÃO",
+    "VALIDADE",
+    "VENCIMENTO",
+    "VAL",
+    "VENC",
+    "PREPARADO",
+    "USAR",
+    "CONTÉM",
+    "CONSERVAR",
+    "DATA",
+    "WRIN",
+    "WSI",
+  ];
 
-const extrairTodasDatas = (texto: string): { [key: string]: string } => {
-  const datas: { [key: string]: string } = {};
-  const linhas = texto.split('\n');
-  let dataTemp = '';
-
-  // Função auxiliar para completar o ano
-  const completarAno = (data: string) => {
-    if (data.match(/\d{2}\/\d{2}\/\d{3}$/)) {
-      return data.slice(0, -3) + '202' + data.slice(-1);
+  // Primeiro procura por "Feijão Preto" especificamente
+  for (const linha of linhas) {
+    if (
+      linha.toLowerCase().includes("feijão preto") ||
+      linha.toLowerCase().includes("feijao preto")
+    ) {
+      return linha.trim();
     }
-    return data;
-  };
-
-  // Procura por datas soltas
-  const datasEncontradas = linhas.filter(linha => 
-    linha.trim().match(/^\d{2}\/\d{2}\/\d{3,4}$/));
-
-  // Se encontrou datas soltas, associa com os rótulos anteriores
-  if (datasEncontradas.length >= 3) {
-    datas['Preparado'] = completarAno(datasEncontradas[0]);
-    datas['Usar a partir'] = completarAno(datasEncontradas[1]);
-    datas['Validade'] = completarAno(datasEncontradas[2]);
-  } else {
-    // Procura por datas com rótulos
-    linhas.forEach(linha => {
-      if (linha.includes('PREPARADO')) {
-        const match = linha.match(/(\d{2}\/\d{2}\/\d{3,4})/);
-        if (match) datas['Preparado'] = completarAno(match[1]);
-      }
-      else if (linha.includes('USAR A PARTIR')) {
-        const match = linha.match(/(\d{2}\/\d{2}\/\d{3,4})/);
-        if (match) datas['Usar a partir'] = completarAno(match[1]);
-      }
-      else if (linha.includes('VALIDADE')) {
-        const match = linha.match(/(\d{2}\/\d{2}\/\d{3,4})/);
-        if (match) datas['Validade'] = completarAno(match[1]);
-      }
-    });
   }
 
-  return datas;
+  // Procura por linhas que podem ser nomes de produtos
+  for (const linha of linhas) {
+    const linhaUpperCase = linha.toUpperCase();
+
+    // Verifica se a linha contém alguma palavra-chave de produto
+    if (
+      palavrasChaveProduto.some((palavra) => linhaUpperCase.includes(palavra))
+    ) {
+      // Remove possíveis códigos ou números no início da linha
+      const produtoLimpo = linha.replace(/^[\d\-\/\\]+\s*/, "").trim();
+      if (
+        produtoLimpo &&
+        !palavrasIgnoradas.some((p) => linhaUpperCase.includes(p))
+      ) {
+        return produtoLimpo;
+      }
+    }
+
+    // Se a linha está em uma caixa (toda em maiúsculas e sem números)
+    if (
+      linha === linhaUpperCase &&
+      !linha.match(/\d/) &&
+      linha.length > 3 &&
+      !palavrasIgnoradas.some((p) => linhaUpperCase.includes(p))
+    ) {
+      return linha.trim();
+    }
+  }
+
+  return null;
 };
 
-const extrairVencimento = (texto: string): string | null => {
-  const datas = extrairTodasDatas(texto);
-  return datas['Validade'] || null;
+const formatarSaida = (
+  produto: string | null,
+  vencimento: string | null,
+  textoCompleto: string
+): string => {
+  let saida = "";
+
+  if (produto) {
+    saida += `📦 Produto: ${produto}\n\n`;
+  }
+
+  if (vencimento) {
+    saida += `📅 Vencimento: ${vencimento}\n\n`;
+  }
+
+  if (!produto && !vencimento) {
+    saida +=
+      "⚠️ Não foi possível identificar o produto ou a data de vencimento.\n\n";
+  }
+
+  saida += "---\nTexto detectado:\n" + textoCompleto;
+
+  return saida;
 };
 
 export default function CameraModal() {
@@ -176,31 +256,16 @@ export default function CameraModal() {
         if (result && result.length > 0) {
           const textoCompleto = result.map((block) => block.text).join("\n");
 
-          // Extrai todas as informações
+          // Extrai as informações
           const nomeProduto = extrairProduto(textoCompleto);
-          const todasDatas = extrairTodasDatas(textoCompleto);
-          const vencimento = extrairVencimento(textoCompleto);
+          const dataVencimento = extrairData(textoCompleto);
 
-          // Formata o texto para exibição
-          let textoFormatado = "";
-          if (nomeProduto) {
-            textoFormatado += `Produto: ${nomeProduto}\n\n`;
-          }
-
-          if (vencimento) {
-            textoFormatado += `Data de Vencimento: ${vencimento}\n\n`;
-          }
-
-          // Adiciona todas as datas encontradas
-          if (Object.keys(todasDatas).length > 0) {
-            textoFormatado += "Todas as Datas:\n";
-            for (const [tipo, data] of Object.entries(todasDatas)) {
-              textoFormatado += `${tipo}: ${data}\n`;
-            }
-            textoFormatado += "\n";
-          }
-
-          textoFormatado += "---\nTexto completo:\n" + textoCompleto;
+          // Formata a saída
+          const textoFormatado = formatarSaida(
+            nomeProduto,
+            dataVencimento,
+            textoCompleto
+          );
 
           setRecognizedText(textoFormatado);
         } else {
@@ -208,12 +273,8 @@ export default function CameraModal() {
         }
       } catch (ocrError) {
         console.error("Erro no OCR:", ocrError);
-        setTimeout(() => {
-          setRecognizedText(
-            "Texto de exemplo (OCR falhou - você precisa criar um build de desenvolvimento com EAS)"
-          );
-          setIsProcessing(false);
-        }, 1500);
+        setRecognizedText("Erro ao processar o texto da imagem");
+        setIsProcessing(false);
       }
 
       setIsProcessing(false);
