@@ -19,6 +19,105 @@ import {
 // Adicione o import do MlkitOcr
 import MlkitOcr from "react-native-mlkit-ocr";
 
+// Adicione estas funções auxiliares antes do componente
+const extrairData = (texto: string): string | null => {
+  // Padrões comuns de data, incluindo anos com 3 dígitos
+  const padroes = [
+    /(\d{2})\/(\d{2})\/(\d{4})/,           // dd/mm/yyyy
+    /(\d{2})\/(\d{2})\/(\d{3})/,           // dd/mm/yyy (formato incompleto)
+    /(\d{2})\.(\d{2})\.(\d{4})/,           // dd.mm.yyyy
+    /(\d{2})\-(\d{2})\-(\d{4})/,           // dd-mm-yyyy
+    /VALIDADE[.: ]+(\d{2})[\/-](\d{2})[\/-](\d{3,4})/i,  // VALIDADE dd/mm/yyy(y)
+    /VAL[.: ]+(\d{2})[\/-](\d{2})[\/-](\d{3,4})/i,       // VAL dd/mm/yyy(y)
+    /VENC[.: ]+(\d{2})[\/-](\d{2})[\/-](\d{3,4})/i       // VENC dd/mm/yyy(y)
+  ];
+
+  for (const padrao of padroes) {
+    const match = texto.match(padrao);
+    if (match) {
+      if (match.length === 4) {
+        let ano = match[3];
+        // Se o ano tem 3 dígitos, assume que é 2023, 2024, etc.
+        if (ano.length === 3) {
+          ano = '202' + ano[2];
+        }
+        return `${match[1]}/${match[2]}/${ano}`;
+      }
+    }
+  }
+  return null;
+};
+
+const extrairProduto = (texto: string): string | null => {
+  const linhas = texto.split('\n');
+  
+  // Procura por linhas que podem conter informações do produto
+  const linhasProduto = linhas.filter(linha => {
+    const ehData = /\d{2}[\/-]\d{2}[\/-]\d{3,4}/.test(linha);
+    const ehCodigo = /^[0-9\-\/]+$/.test(linha.trim());
+    const palavrasIgnoradas = ['VAL', 'VENC', 'VALIDADE', 'LOTE', 'FABRICAÇÃO', 'PREPARADO', 'USAR A PARTIR'];
+    
+    return !ehData && !ehCodigo && !palavrasIgnoradas.some(p => linha.toUpperCase().includes(p));
+  });
+
+  // Combina as primeiras linhas que parecem ser do produto
+  const produtoCompleto = linhasProduto
+    .slice(0, 2) // Pega até 2 linhas para formar o nome do produto
+    .map(linha => linha.trim())
+    .filter(linha => linha.length > 0)
+    .join(' - ');
+
+  return produtoCompleto || null;
+};
+
+const extrairTodasDatas = (texto: string): { [key: string]: string } => {
+  const datas: { [key: string]: string } = {};
+  const linhas = texto.split('\n');
+  let dataTemp = '';
+
+  // Função auxiliar para completar o ano
+  const completarAno = (data: string) => {
+    if (data.match(/\d{2}\/\d{2}\/\d{3}$/)) {
+      return data.slice(0, -3) + '202' + data.slice(-1);
+    }
+    return data;
+  };
+
+  // Procura por datas soltas
+  const datasEncontradas = linhas.filter(linha => 
+    linha.trim().match(/^\d{2}\/\d{2}\/\d{3,4}$/));
+
+  // Se encontrou datas soltas, associa com os rótulos anteriores
+  if (datasEncontradas.length >= 3) {
+    datas['Preparado'] = completarAno(datasEncontradas[0]);
+    datas['Usar a partir'] = completarAno(datasEncontradas[1]);
+    datas['Validade'] = completarAno(datasEncontradas[2]);
+  } else {
+    // Procura por datas com rótulos
+    linhas.forEach(linha => {
+      if (linha.includes('PREPARADO')) {
+        const match = linha.match(/(\d{2}\/\d{2}\/\d{3,4})/);
+        if (match) datas['Preparado'] = completarAno(match[1]);
+      }
+      else if (linha.includes('USAR A PARTIR')) {
+        const match = linha.match(/(\d{2}\/\d{2}\/\d{3,4})/);
+        if (match) datas['Usar a partir'] = completarAno(match[1]);
+      }
+      else if (linha.includes('VALIDADE')) {
+        const match = linha.match(/(\d{2}\/\d{2}\/\d{3,4})/);
+        if (match) datas['Validade'] = completarAno(match[1]);
+      }
+    });
+  }
+
+  return datas;
+};
+
+const extrairVencimento = (texto: string): string | null => {
+  const datas = extrairTodasDatas(texto);
+  return datas['Validade'] || null;
+};
+
 export default function CameraModal() {
   const [image, setImage] = useState<string | null>(null);
   const [recognizedText, setRecognizedText] = useState<string | null>(null);
@@ -71,23 +170,44 @@ export default function CameraModal() {
     try {
       setIsProcessing(true);
 
-      // Implementação com react-native-mlkit-ocr
       try {
-        // Reconhece texto da imagem usando MlkitOcr
         const result = await MlkitOcr.detectFromUri(image);
 
-        // O resultado é um array de blocos de texto
         if (result && result.length > 0) {
-          // Junta todos os blocos de texto em uma única string
-          const extractedText = result.map((block) => block.text).join("\n");
-          setRecognizedText(extractedText);
+          const textoCompleto = result.map((block) => block.text).join("\n");
+
+          // Extrai todas as informações
+          const nomeProduto = extrairProduto(textoCompleto);
+          const todasDatas = extrairTodasDatas(textoCompleto);
+          const vencimento = extrairVencimento(textoCompleto);
+
+          // Formata o texto para exibição
+          let textoFormatado = "";
+          if (nomeProduto) {
+            textoFormatado += `Produto: ${nomeProduto}\n\n`;
+          }
+
+          if (vencimento) {
+            textoFormatado += `Data de Vencimento: ${vencimento}\n\n`;
+          }
+
+          // Adiciona todas as datas encontradas
+          if (Object.keys(todasDatas).length > 0) {
+            textoFormatado += "Todas as Datas:\n";
+            for (const [tipo, data] of Object.entries(todasDatas)) {
+              textoFormatado += `${tipo}: ${data}\n`;
+            }
+            textoFormatado += "\n";
+          }
+
+          textoFormatado += "---\nTexto completo:\n" + textoCompleto;
+
+          setRecognizedText(textoFormatado);
         } else {
           setRecognizedText("Nenhum texto encontrado na imagem");
         }
       } catch (ocrError) {
         console.error("Erro no OCR:", ocrError);
-
-        // Fallback para o modo de exemplo se o OCR falhar
         setTimeout(() => {
           setRecognizedText(
             "Texto de exemplo (OCR falhou - você precisa criar um build de desenvolvimento com EAS)"
