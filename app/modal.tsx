@@ -6,9 +6,11 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -20,6 +22,13 @@ import {
 import MlkitOcr from "react-native-mlkit-ocr";
 
 // Adicione estas funções auxiliares antes do componente
+interface ProdutoAlerta {
+  id: string;
+  nome: string;
+  validade: string;
+  dataRegistro: string;
+}
+
 const converterMes = (mesTexto: string): string => {
   const meses: { [key: string]: string } = {
     JAN: "01",
@@ -202,6 +211,37 @@ export default function CameraModal() {
   const [image, setImage] = useState<string | null>(null);
   const [recognizedText, setRecognizedText] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [produtos, setProdutos] = useState<ProdutoAlerta[]>([]);
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [tempValidade, setTempValidade] = useState<string | null>(null);
+  const [manualProdutoNome, setManualProdutoNome] = useState("");
+
+  const salvarProduto = (nome: string, validade: string) => {
+    const novoProduto: ProdutoAlerta = {
+      id: Date.now().toString(),
+      nome,
+      validade,
+      dataRegistro: new Date().toISOString(),
+    };
+
+    setProdutos((prevProdutos) => [...prevProdutos, novoProduto]);
+    Alert.alert(
+      "Produto Registrado",
+      `O produto ${nome} foi registrado com sucesso!\nValidade: ${validade}`,
+      [{ text: "OK" }]
+    );
+  };
+
+  const handleManualSave = () => {
+    if (manualProdutoNome.trim() && tempValidade) {
+      salvarProduto(manualProdutoNome.trim(), tempValidade);
+      setShowManualInput(false);
+      setManualProdutoNome("");
+      setTempValidade(null);
+    } else {
+      Alert.alert("Erro", "Por favor, insira o nome do produto.");
+    }
+  };
 
   const takePicture = async () => {
     // Solicita permissão para a câmera
@@ -260,6 +300,16 @@ export default function CameraModal() {
           const nomeProduto = extrairProduto(textoCompleto);
           const dataVencimento = extrairData(textoCompleto);
 
+          // Se encontrou ambos, salva direto
+          if (nomeProduto && dataVencimento) {
+            salvarProduto(nomeProduto, dataVencimento);
+          }
+          // Se encontrou só a data, mostra input manual
+          else if (!nomeProduto && dataVencimento) {
+            setTempValidade(dataVencimento);
+            setShowManualInput(true);
+          }
+
           // Formata a saída
           const textoFormatado = formatarSaida(
             nomeProduto,
@@ -289,6 +339,27 @@ export default function CameraModal() {
     }
   };
 
+  // Renderiza a lista de produtos registrados
+  const renderProdutos = () => {
+    if (produtos.length === 0) {
+      return null;
+    }
+
+    return (
+      <View style={styles.listContainer}>
+        <Text style={styles.listHeader}>Produtos Registrados:</Text>
+        {produtos.map((produto) => (
+          <View key={produto.id} style={styles.produtoItem}>
+            <Text style={styles.produtoNome}>📦 {produto.nome}</Text>
+            <Text style={styles.produtoValidade}>
+              📅 Validade: {produto.validade}
+            </Text>
+          </View>
+        ))}
+      </View>
+    );
+  };
+
   return (
     <ScrollView style={styles.container}>
       <Stack.Screen
@@ -299,6 +370,52 @@ export default function CameraModal() {
           animation: "slide_from_bottom",
         }}
       />
+
+      {/* Modal para input manual */}
+      <Modal
+        visible={showManualInput}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowManualInput(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalHeader}>Inserir Nome do Produto</Text>
+
+            <Text style={styles.modalText}>
+              Data de Validade Encontrada: {tempValidade}
+            </Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Nome do Produto"
+              value={manualProdutoNome}
+              onChangeText={setManualProdutoNome}
+              autoFocus
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setShowManualInput(false);
+                  setManualProdutoNome("");
+                  setTempValidade(null);
+                }}
+              >
+                <Text style={styles.modalButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleManualSave}
+              >
+                <Text style={styles.modalButtonText}>Salvar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <View style={styles.imageContainer}>
         {image ? (
@@ -349,6 +466,8 @@ export default function CameraModal() {
           </View>
         </View>
       )}
+
+      {renderProdutos()}
 
       <View style={{ height: 30 }} />
     </ScrollView>
@@ -433,5 +552,92 @@ const styles = StyleSheet.create({
   extractedText: {
     fontSize: 16,
     lineHeight: 24,
+  },
+  listContainer: {
+    margin: 20,
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  listHeader: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 10,
+    color: "#333",
+  },
+  produtoItem: {
+    backgroundColor: "#f8f8f8",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+  produtoNome: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
+    color: "#333",
+  },
+  produtoValidade: {
+    fontSize: 14,
+    color: "#666",
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 20,
+    width: "90%",
+    maxWidth: 400,
+  },
+  modalHeader: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 15,
+    color: "#333",
+    textAlign: "center",
+  },
+  modalText: {
+    fontSize: 16,
+    marginBottom: 15,
+    color: "#666",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  modalButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    marginHorizontal: 5,
+  },
+  cancelButton: {
+    backgroundColor: "#ff6b6b",
+  },
+  saveButton: {
+    backgroundColor: "#4CAF50",
+  },
+  modalButtonText: {
+    color: "white",
+    textAlign: "center",
+    fontWeight: "bold",
+    fontSize: 16,
   },
 });
