@@ -12,15 +12,188 @@ import {
   View,
 } from "react-native";
 import { useProdutos } from "../contexts/ProdutosContext";
+import { useTema } from "../contexts/TemaContext";
 
 export default function HomeScreen() {
   const { produtos, carregarProdutos, removerProduto, adicionarProduto } =
     useProdutos();
+  const { cores } = useTema();
   const [showModal, setShowModal] = useState(false);
   const [nomeProduto, setNomeProduto] = useState("");
   const [dataValidade, setDataValidade] = useState("");
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: cores.background,
+    },
+    header: {
+      padding: 20,
+      backgroundColor: cores.card,
+      borderBottomWidth: 1,
+      borderBottomColor: cores.border,
+      marginTop: 40,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: "bold",
+      color: cores.text,
+    },
+    emptyContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 20,
+      marginTop: 100,
+    },
+    emptyText: {
+      fontSize: 18,
+      color: cores.textSecondary,
+      marginTop: 10,
+    },
+    emptySubtext: {
+      fontSize: 14,
+      color: cores.textSecondary,
+      textAlign: "center",
+      marginTop: 5,
+    },
+    produtoCard: {
+      backgroundColor: cores.card,
+      marginHorizontal: 15,
+      marginTop: 15,
+      borderRadius: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 15,
+      elevation: 2,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+    },
+    statusIndicator: {
+      width: 8,
+      height: "100%",
+      borderRadius: 4,
+      marginRight: 15,
+    },
+    produtoInfo: {
+      flex: 1,
+    },
+    produtoNome: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: cores.text,
+      marginBottom: 4,
+    },
+    produtoValidade: {
+      fontSize: 14,
+      color: cores.textSecondary,
+      marginBottom: 4,
+    },
+    statusText: {
+      fontSize: 12,
+      fontWeight: "500",
+    },
+    deleteButton: {
+      padding: 10,
+    },
+    fabButton: {
+      position: "absolute",
+      right: 20,
+      bottom: 20,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: cores.primary,
+      justifyContent: "center",
+      alignItems: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+      elevation: 5,
+    },
+    modalContainer: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.6)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    modalContent: {
+      backgroundColor: cores.card,
+      borderRadius: 16,
+      padding: 24,
+      width: "90%",
+      maxWidth: 400,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 12,
+      elevation: 5,
+    },
+    modalHeader: {
+      fontSize: 20,
+      fontWeight: "700",
+      marginBottom: 16,
+      color: cores.text,
+      textAlign: "center",
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: cores.border,
+      borderRadius: 12,
+      padding: 16,
+      fontSize: 16,
+      marginBottom: 16,
+      backgroundColor: cores.background,
+      color: cores.text,
+    },
+    modalButtons: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginTop: 8,
+    },
+    modalButton: {
+      flex: 1,
+      padding: 14,
+      borderRadius: 12,
+      marginHorizontal: 6,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    cancelButton: {
+      backgroundColor: cores.danger,
+    },
+    saveButton: {
+      backgroundColor: cores.success,
+    },
+    modalButtonText: {
+      color: "#fff",
+      textAlign: "center",
+      fontWeight: "600",
+      fontSize: 16,
+    },
+    dateInput: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingRight: 12,
+    },
+    dateText: {
+      fontSize: 16,
+      color: cores.text,
+    },
+    datePlaceholder: {
+      fontSize: 16,
+      color: cores.textSecondary,
+    },
+  });
 
   useEffect(() => {
     carregarProdutos();
@@ -83,7 +256,7 @@ export default function HomeScreen() {
 
         {produtos.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <FontAwesome name="inbox" size={50} color="#ccc" />
+            <FontAwesome name="inbox" size={50} color={cores.textSecondary} />
             <Text style={styles.emptyText}>Nenhum produto cadastrado</Text>
             <Text style={styles.emptySubtext}>
               Tire uma foto do produto para começar a monitorar
@@ -117,7 +290,7 @@ export default function HomeScreen() {
                   style={styles.deleteButton}
                   onPress={() => removerProduto(produto.id)}
                 >
-                  <FontAwesome name="trash" size={20} color="#ff6b6b" />
+                  <FontAwesome name="trash" size={20} color={cores.danger} />
                 </TouchableOpacity>
               </View>
             );
@@ -125,7 +298,6 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
-      {/* Botão flutuante para adicionar manualmente */}
       <TouchableOpacity
         style={styles.fabButton}
         onPress={() => setShowModal(true)}
@@ -133,7 +305,6 @@ export default function HomeScreen() {
         <FontAwesome name="plus" size={16} color="#fff" />
       </TouchableOpacity>
 
-      {/* Modal para adicionar produto manualmente */}
       <Modal
         visible={showModal}
         transparent={true}
@@ -147,6 +318,7 @@ export default function HomeScreen() {
             <TextInput
               style={styles.input}
               placeholder="Nome do Produto"
+              placeholderTextColor={cores.textSecondary}
               value={nomeProduto}
               onChangeText={setNomeProduto}
             />
@@ -160,7 +332,11 @@ export default function HomeScreen() {
               >
                 {dataValidade || "Selecione a Data de Validade"}
               </Text>
-              <FontAwesome name="calendar" size={20} color="#666" />
+              <FontAwesome
+                name="calendar"
+                size={20}
+                color={cores.textSecondary}
+              />
             </TouchableOpacity>
 
             {showDatePicker && (
@@ -199,174 +375,3 @@ export default function HomeScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f5f5f5",
-  },
-  header: {
-    padding: 20,
-    backgroundColor: "white",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-    marginTop: 100,
-  },
-  emptyText: {
-    fontSize: 18,
-    color: "#666",
-    marginTop: 10,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: "#999",
-    textAlign: "center",
-    marginTop: 5,
-  },
-  produtoCard: {
-    backgroundColor: "white",
-    marginHorizontal: 15,
-    marginTop: 15,
-    borderRadius: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 15,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  statusIndicator: {
-    width: 8,
-    height: "100%",
-    borderRadius: 4,
-    marginRight: 15,
-  },
-  produtoInfo: {
-    flex: 1,
-  },
-  produtoNome: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
-  },
-  produtoValidade: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 4,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  deleteButton: {
-    padding: 10,
-  },
-  // Estilos do botão flutuante
-  fabButton: {
-    position: "absolute",
-    right: 20,
-    bottom: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#228be6",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  // Estilos do modal
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContent: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 24,
-    width: "90%",
-    maxWidth: 400,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  modalHeader: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 16,
-    color: "#343a40",
-    textAlign: "center",
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#dee2e6",
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    marginBottom: 16,
-    backgroundColor: "#f8f9fa",
-  },
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 8,
-  },
-  modalButton: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    marginHorizontal: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cancelButton: {
-    backgroundColor: "#fa5252",
-  },
-  saveButton: {
-    backgroundColor: "#40c057",
-  },
-  modalButtonText: {
-    color: "white",
-    textAlign: "center",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  dateInput: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingRight: 12,
-  },
-  dateText: {
-    fontSize: 16,
-    color: "#333",
-  },
-  datePlaceholder: {
-    fontSize: 16,
-    color: "#999",
-  },
-});

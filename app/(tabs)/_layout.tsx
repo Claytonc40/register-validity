@@ -1,12 +1,8 @@
 import { FontAwesome } from "@expo/vector-icons";
 import { router, Tabs } from "expo-router";
 import React from "react";
-import {
-  StyleSheet,
-  TouchableOpacity,
-  useColorScheme,
-  View,
-} from "react-native";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { useTema } from "../contexts/TemaContext";
 
 // Definições de cores simples para o app
 const tintColorLight = "#2f95dc";
@@ -42,13 +38,14 @@ function TabBarIcon(props: {
 
 // Componente personalizado para o botão da câmera
 function CameraButton() {
+  const { cores } = useTema();
   const handleOpenCamera = () => {
     router.push("/modal");
   };
 
   return (
     <TouchableOpacity
-      style={styles.cameraButton}
+      style={[styles.cameraButton, { backgroundColor: cores.primary }]}
       onPress={handleOpenCamera}
       activeOpacity={0.8}
     >
@@ -58,32 +55,33 @@ function CameraButton() {
 }
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const { cores } = useTema();
 
   return (
     <View style={{ flex: 1 }}>
       <Tabs
         screenOptions={{
-          tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
+          tabBarActiveTintColor: cores.primary,
+          tabBarInactiveTintColor: cores.textSecondary,
           tabBarStyle: {
             height: 60,
+            backgroundColor: cores.card,
+            borderTopColor: cores.border,
           },
+          headerShown: false,
+          tabBarShowLabel: false,
         }}
       >
         <Tabs.Screen
           name="index"
           options={{
-            title: "Início",
             tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
           }}
         />
         <Tabs.Screen
-          name="explore"
+          name="configuracoes"
           options={{
-            title: "Sobre",
-            tabBarIcon: ({ color }) => (
-              <TabBarIcon name="info-circle" color={color} />
-            ),
+            tabBarIcon: ({ color }) => <TabBarIcon name="cog" color={color} />,
           }}
         />
       </Tabs>
@@ -100,7 +98,6 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: "#2196F3",
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",

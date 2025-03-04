@@ -3,16 +3,48 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { useColorScheme } from "react-native";
+import { useEffect } from "react";
 import "react-native-reanimated";
+import { PadroesProvider } from "./contexts/PadroesContext";
 import { ProdutosProvider } from "./contexts/ProdutosContext";
+import { TemaProvider, useTema } from "./contexts/TemaContext";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
+function RootLayoutNav() {
+  const { temaAtual } = useTema();
+  const isDark = temaAtual === "dark";
+
+  return (
+    <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
+      <StatusBar style={isDark ? "light" : "dark"} />
+      <PadroesProvider>
+        <ProdutosProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="modal"
+              options={{
+                presentation: "modal",
+                animation: "slide_from_bottom",
+              }}
+            />
+            <Stack.Screen
+              name="treinamento"
+              options={{
+                presentation: "modal",
+                animation: "slide_from_bottom",
+              }}
+            />
+          </Stack>
+        </ProdutosProvider>
+      </PadroesProvider>
+    </ThemeProvider>
+  );
+}
+
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
@@ -28,20 +60,8 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <StatusBar style="auto" />
-      <ProdutosProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="modal"
-            options={{
-              presentation: "modal",
-              animation: "slide_from_bottom",
-            }}
-          />
-        </Stack>
-      </ProdutosProvider>
-    </ThemeProvider>
+    <TemaProvider>
+      <RootLayoutNav />
+    </TemaProvider>
   );
 }
