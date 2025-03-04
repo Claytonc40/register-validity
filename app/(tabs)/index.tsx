@@ -35,6 +35,7 @@ export default function HomeScreen() {
       borderBottomWidth: 1,
       borderBottomColor: cores.border,
       marginTop: 40,
+      zIndex: 1,
     },
     title: {
       fontSize: 24,
@@ -46,7 +47,7 @@ export default function HomeScreen() {
       alignItems: "center",
       justifyContent: "center",
       padding: 20,
-      marginTop: 100,
+      marginTop: 20,
     },
     emptyText: {
       fontSize: 18,
@@ -249,11 +250,11 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView>
-        <View style={styles.header}>
-          <Text style={styles.title}>Produtos Cadastrados</Text>
-        </View>
+      <View style={styles.header}>
+        <Text style={styles.title}>Produtos Cadastrados</Text>
+      </View>
 
+      <ScrollView>
         {produtos.length === 0 ? (
           <View style={styles.emptyContainer}>
             <FontAwesome name="inbox" size={50} color={cores.textSecondary} />
@@ -263,38 +264,40 @@ export default function HomeScreen() {
             </Text>
           </View>
         ) : (
-          produtos.map((produto) => {
-            const diasRestantes = calcularDiasRestantes(produto.validade);
-            const statusColor = getStatusColor(diasRestantes);
+          <View style={{ paddingBottom: 80 }}>
+            {produtos.map((produto) => {
+              const diasRestantes = calcularDiasRestantes(produto.validade);
+              const statusColor = getStatusColor(diasRestantes);
 
-            return (
-              <View key={produto.id} style={styles.produtoCard}>
-                <View
-                  style={[
-                    styles.statusIndicator,
-                    { backgroundColor: statusColor },
-                  ]}
-                />
-                <View style={styles.produtoInfo}>
-                  <Text style={styles.produtoNome}>{produto.nome}</Text>
-                  <Text style={styles.produtoValidade}>
-                    Validade: {produto.validade}
-                  </Text>
-                  <Text style={[styles.statusText, { color: statusColor }]}>
-                    {diasRestantes < 0
-                      ? "Produto vencido"
-                      : `${diasRestantes} dias restantes`}
-                  </Text>
+              return (
+                <View key={produto.id} style={styles.produtoCard}>
+                  <View
+                    style={[
+                      styles.statusIndicator,
+                      { backgroundColor: statusColor },
+                    ]}
+                  />
+                  <View style={styles.produtoInfo}>
+                    <Text style={styles.produtoNome}>{produto.nome}</Text>
+                    <Text style={styles.produtoValidade}>
+                      Validade: {produto.validade}
+                    </Text>
+                    <Text style={[styles.statusText, { color: statusColor }]}>
+                      {diasRestantes < 0
+                        ? "Produto vencido"
+                        : `${diasRestantes} dias restantes`}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => removerProduto(produto.id)}
+                  >
+                    <FontAwesome name="trash" size={20} color={cores.danger} />
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={() => removerProduto(produto.id)}
-                >
-                  <FontAwesome name="trash" size={20} color={cores.danger} />
-                </TouchableOpacity>
-              </View>
-            );
-          })
+              );
+            })}
+          </View>
         )}
       </ScrollView>
 
