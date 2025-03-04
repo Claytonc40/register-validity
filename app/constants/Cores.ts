@@ -24,3 +24,5 @@ export const Cores = {
     warning: "#ffd43b",
   },
 };
+
+export default Cores;

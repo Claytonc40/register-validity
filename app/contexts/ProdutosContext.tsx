@@ -69,3 +69,5 @@ export function useProdutos() {
   }
   return context;
 }
+
+export default ProdutosProvider;

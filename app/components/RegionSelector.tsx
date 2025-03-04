@@ -168,3 +168,5 @@ export function RegionSelector({
     </View>
   );
 }
+
+export default RegionSelector;

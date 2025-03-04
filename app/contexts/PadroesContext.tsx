@@ -162,3 +162,5 @@ export function usePadroes() {
   }
   return context;
 }
+
+export default PadroesProvider;

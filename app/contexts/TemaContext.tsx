@@ -74,3 +74,5 @@ export function useTema() {
   }
   return context;
 }
+
+export default TemaProvider;
