@@ -1,4 +1,4 @@
-// import { useNotifications } from "@/hooks/useNotifications";
+import { useNotifications } from "@/hooks/useNotifications";
 import { FontAwesome } from "@expo/vector-icons";
 import { router } from "expo-router/";
 import React from "react";
@@ -7,14 +7,14 @@ import { useTema } from "../../contexts/TemaContext";
 
 const ConfiguracoesScreen = () => {
   const { tema, mudarTema, cores } = useTema();
-  // const { scheduleProductNotification } = useNotifications();
+  const { scheduleProductNotification } = useNotifications();
 
   const handleTesteNotificacao = async () => {
     const dataAtual = new Date();
     const dataNotificacao = new Date(dataAtual.getTime() + 10000); // 10 segundos no futuro
 
     try {
-      // await scheduleProductNotification("Produto Teste", dataNotificacao);
+      await scheduleProductNotification("Produto Teste", dataNotificacao);
       alert("Notificação agendada! Você receberá em 10 segundos.");
     } catch (error) {
       alert("Erro ao agendar notificação: " + (error as Error).message);
