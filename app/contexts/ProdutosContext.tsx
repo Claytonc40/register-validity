@@ -16,7 +16,7 @@ interface ProdutosContextData {
 }
 
 const ProdutosContext = createContext<ProdutosContextData>(
-  {} as ProdutosContextData
+  {} as ProdutosContextData,
 );
 
 export function ProdutosProvider({ children }: { children: ReactNode }) {

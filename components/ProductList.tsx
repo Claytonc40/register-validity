@@ -37,8 +37,8 @@ export default function ProductList({ products, onDelete }: ProductListProps) {
           expired
             ? styles.expiredItem
             : nearExpiry
-            ? styles.nearExpiryItem
-            : {},
+              ? styles.nearExpiryItem
+              : {},
         ]}
       >
         <View style={styles.productInfo}>

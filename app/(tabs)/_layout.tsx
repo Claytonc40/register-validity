@@ -1,5 +1,5 @@
 import { FontAwesome } from "@expo/vector-icons";
-import { router, Tabs } from "expo-router";
+import { router, Tabs } from "expo-router/";
 import React from "react";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
 import { useTema } from "../contexts/TemaContext";
@@ -70,18 +70,26 @@ export default function TabLayout() {
           },
           headerShown: false,
           tabBarShowLabel: false,
+          tabBarItemStyle: {
+            flex: 1,
+            justifyContent: "center",
+          },
         }}
       >
         <Tabs.Screen
           name="index"
           options={{
-            tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
+            tabBarIcon: ({ color }: { color: string }) => (
+              <TabBarIcon name="home" color={color} />
+            ),
           }}
         />
         <Tabs.Screen
           name="configuracoes"
           options={{
-            tabBarIcon: ({ color }) => <TabBarIcon name="cog" color={color} />,
+            tabBarIcon: ({ color }: { color: string }) => (
+              <TabBarIcon name="cog" color={color} />
+            ),
           }}
         />
       </Tabs>
@@ -108,6 +116,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
-    zIndex: 10,
+    zIndex: 100,
   },
 });

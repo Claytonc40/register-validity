@@ -21,7 +21,7 @@ export function useProducts() {
             (product: any) => ({
               ...product,
               expiryDate: new Date(product.expiryDate),
-            })
+            }),
           );
 
           setProducts(parsedProducts);
@@ -47,7 +47,7 @@ export function useProducts() {
       try {
         await AsyncStorage.setItem(
           PRODUCTS_STORAGE_KEY,
-          JSON.stringify(products)
+          JSON.stringify(products),
         );
       } catch (error) {
         console.error("Erro ao salvar produtos:", error);
@@ -74,13 +74,13 @@ export function useProducts() {
   // Remover um produto
   const removeProduct = (productId: string) => {
     setProducts((currentProducts) =>
-      currentProducts.filter((product) => product.id !== productId)
+      currentProducts.filter((product) => product.id !== productId),
     );
   };
 
   // Ordenar produtos por data de validade (os mais próximos de vencer primeiro)
   const sortedProducts = [...products].sort(
-    (a, b) => a.expiryDate.getTime() - b.expiryDate.getTime()
+    (a, b) => a.expiryDate.getTime() - b.expiryDate.getTime(),
   );
 
   return {

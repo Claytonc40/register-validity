@@ -35,11 +35,11 @@ interface PadroesContextData {
     padrao: Omit<
       PadraoEtiqueta,
       "id" | "criadoEm" | "atualizadoEm" | "totalUsos" | "taxaAcerto"
-    >
+    >,
   ) => Promise<void>;
   atualizarPadrao: (
     id: string,
-    dados: Partial<PadraoEtiqueta>
+    dados: Partial<PadraoEtiqueta>,
   ) => Promise<void>;
   removerPadrao: (id: string) => Promise<void>;
   buscarPadrao: (texto: string) => Promise<PadraoEtiqueta | null>;
@@ -47,7 +47,7 @@ interface PadroesContextData {
 }
 
 const PadroesContext = createContext<PadroesContextData>(
-  {} as PadroesContextData
+  {} as PadroesContextData,
 );
 
 const PADROES_STORAGE_KEY = "@app_padroes";
@@ -70,7 +70,7 @@ export function PadroesProvider({ children }: { children: ReactNode }) {
     novoPadrao: Omit<
       PadraoEtiqueta,
       "id" | "criadoEm" | "atualizadoEm" | "totalUsos" | "taxaAcerto"
-    >
+    >,
   ) => {
     try {
       const padrao: PadraoEtiqueta = {
@@ -85,7 +85,7 @@ export function PadroesProvider({ children }: { children: ReactNode }) {
       const novosPadroes = [...padroes, padrao];
       await AsyncStorage.setItem(
         PADROES_STORAGE_KEY,
-        JSON.stringify(novosPadroes)
+        JSON.stringify(novosPadroes),
       );
       setPadroes(novosPadroes);
     } catch (error) {
@@ -95,7 +95,7 @@ export function PadroesProvider({ children }: { children: ReactNode }) {
 
   const atualizarPadrao = async (
     id: string,
-    dados: Partial<PadraoEtiqueta>
+    dados: Partial<PadraoEtiqueta>,
   ) => {
     try {
       const novosPadroes = padroes.map((padrao) =>
@@ -105,12 +105,12 @@ export function PadroesProvider({ children }: { children: ReactNode }) {
               ...dados,
               atualizadoEm: new Date().toISOString(),
             }
-          : padrao
+          : padrao,
       );
 
       await AsyncStorage.setItem(
         PADROES_STORAGE_KEY,
-        JSON.stringify(novosPadroes)
+        JSON.stringify(novosPadroes),
       );
       setPadroes(novosPadroes);
     } catch (error) {
@@ -123,7 +123,7 @@ export function PadroesProvider({ children }: { children: ReactNode }) {
       const novosPadroes = padroes.filter((padrao) => padrao.id !== id);
       await AsyncStorage.setItem(
         PADROES_STORAGE_KEY,
-        JSON.stringify(novosPadroes)
+        JSON.stringify(novosPadroes),
       );
       setPadroes(novosPadroes);
     } catch (error) {
@@ -132,7 +132,7 @@ export function PadroesProvider({ children }: { children: ReactNode }) {
   };
 
   const buscarPadrao = async (
-    texto: string
+    texto: string,
   ): Promise<PadraoEtiqueta | null> => {
     // Implementar lógica de busca de padrão mais similar
     // Por enquanto, retorna null

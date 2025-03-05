@@ -7,6 +7,7 @@ Este aplicativo foi desenvolvido para ajudar a controlar as datas de validade do
 Alguns problemas foram identificados e corrigidos neste projeto:
 
 1. Substituição de componentes personalizados (`Themed`) por componentes nativos do React Native
+
    - Modificados arquivos em `app/(tabs)/` para usar `Text` e `View` diretamente do React Native
    - Ajustado o `_layout.tsx` para remover dependências de componentes inexistentes
 
@@ -19,26 +20,31 @@ Alguns problemas foram identificados e corrigidos neste projeto:
 Se você estiver enfrentando problemas ao iniciar o aplicativo, siga estas etapas:
 
 1. Encerre qualquer processo Metro Bundler em execução:
+
    ```
    npx kill-port 8081
    ```
 
 2. Limpe o cache:
+
    ```
    npm start -- --reset-cache
    ```
 
 3. Inicie o aplicativo:
+
    ```
    npm start
    ```
 
 4. Em um novo terminal, execute no Android:
+
    ```
    npm run android
    ```
-   
+
    Ou no iOS (requer macOS):
+
    ```
    npm run ios
    ```

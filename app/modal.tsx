@@ -1,6 +1,6 @@
 import { FontAwesome } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { Stack } from "expo-router";
+import { Stack } from "expo-router/stack";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
