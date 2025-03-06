@@ -216,9 +216,24 @@ export default function CameraModal() {
   const [tempValidade, setTempValidade] = useState<string | null>(null);
   const [manualProdutoNome, setManualProdutoNome] = useState("");
 
-  const { adicionarProduto } = useProdutos();
+  const { adicionarProduto, produtos } = useProdutos();
 
   const salvarProduto = async (nome: string, validade: string) => {
+    // Verifica se já existe um produto com o mesmo nome e data de validade
+    const produtoExistente = produtos.find(
+      (produto) =>
+        produto.nome.toLowerCase() === nome.toLowerCase() &&
+        produto.validade === validade
+    );
+
+    if (produtoExistente) {
+      Alert.alert(
+        "Produto já cadastrado",
+        "Já existe um produto com este nome e data de validade."
+      );
+      return;
+    }
+
     const novoProduto: ProdutoAlerta = {
       id: Date.now().toString(),
       nome,

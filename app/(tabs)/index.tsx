@@ -1,8 +1,9 @@
 import { FontAwesome } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Animated,
   Modal,
   ScrollView,
   StyleSheet,
@@ -19,10 +20,15 @@ export default function HomeScreen() {
     useProdutos();
   const { cores } = useTema();
   const [showModal, setShowModal] = useState(false);
+  const [showMenuModal, setShowMenuModal] = useState(false);
   const [nomeProduto, setNomeProduto] = useState("");
   const [dataValidade, setDataValidade] = useState("");
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("todos");
+  const slideAnim = useRef(new Animated.Value(400)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const styles = StyleSheet.create({
     container: {
@@ -34,19 +40,97 @@ export default function HomeScreen() {
       backgroundColor: cores.card,
       borderBottomWidth: 1,
       borderBottomColor: cores.border,
-      marginTop: 40,
+      paddingTop: 60,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    headerTitle: {
+      flex: 1,
+    },
+    menuButton: {
+      padding: 8,
+    },
+    menuModal: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.6)",
+      justifyContent: "flex-start",
+      alignItems: "flex-end",
+    },
+    menuContent: {
+      backgroundColor: cores.card,
+      width: "80%",
+      height: "100%",
+      padding: 20,
+      borderTopLeftRadius: 20,
+      borderBottomLeftRadius: 20,
+      transform: [{ translateX: 0 }],
+      paddingBottom: 40,
+    },
+    menuHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 20,
+    },
+    menuTitle: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: cores.text,
+    },
+    closeButton: {
+      padding: 8,
+    },
+    searchInput: {
+      backgroundColor: cores.background,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 20,
+      color: cores.text,
+    },
+    filterSection: {
+      marginBottom: 20,
+    },
+    filterTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: cores.text,
+      marginBottom: 10,
+    },
+    filterOption: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 12,
+      borderRadius: 8,
+      marginBottom: 8,
+    },
+    filterOptionSelected: {
+      backgroundColor: cores.primary + "20",
+    },
+    filterOptionText: {
+      marginLeft: 10,
+      color: cores.text,
+    },
+    filterOptionTextSelected: {
+      color: cores.primary,
+      fontWeight: "600",
     },
     title: {
       fontSize: 24,
       fontWeight: "bold",
       color: cores.text,
+      marginBottom: 10,
+    },
+    contentContainer: {
+      flexGrow: 1,
+      paddingBottom: 80,
     },
     emptyContainer: {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
       padding: 20,
-      marginTop: 100,
+      marginTop: 50,
     },
     emptyText: {
       fontSize: 18,
@@ -199,6 +283,36 @@ export default function HomeScreen() {
     carregarProdutos();
   }, []);
 
+  useEffect(() => {
+    if (showMenuModal) {
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 400,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [showMenuModal]);
+
   const formatarData = (data: Date): string => {
     const dia = String(data.getDate()).padStart(2, "0");
     const mes = String(data.getMonth() + 1).padStart(2, "0");
@@ -217,6 +331,21 @@ export default function HomeScreen() {
   const handleSaveManual = () => {
     if (!nomeProduto.trim() || !dataValidade.trim()) {
       Alert.alert("Erro", "Por favor, preencha todos os campos");
+      return;
+    }
+
+    // Verifica se já existe um produto com o mesmo nome e data de validade
+    const produtoExistente = produtos.find(
+      (produto) =>
+        produto.nome.toLowerCase() === nomeProduto.trim().toLowerCase() &&
+        produto.validade === dataValidade
+    );
+
+    if (produtoExistente) {
+      Alert.alert(
+        "Produto já cadastrado",
+        "Já existe um produto com este nome e data de validade."
+      );
       return;
     }
 
@@ -247,14 +376,37 @@ export default function HomeScreen() {
     return "#4CAF50";
   };
 
+  const filteredProdutos = produtos.filter((produto) => {
+    const matchesSearch = produto.nome
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
+    const diasRestantes = calcularDiasRestantes(produto.validade);
+
+    if (filterStatus === "vencidos") return matchesSearch && diasRestantes < 0;
+    if (filterStatus === "proximos")
+      return matchesSearch && diasRestantes >= 0 && diasRestantes <= 30;
+    if (filterStatus === "ok") return matchesSearch && diasRestantes > 30;
+    return matchesSearch;
+  });
+
   return (
     <View style={styles.container}>
-      <ScrollView>
-        <View style={styles.header}>
+      <View style={styles.header}>
+        <View style={styles.headerTitle}>
           <Text style={styles.title}>Produtos Cadastrados</Text>
         </View>
-
-        {produtos.length === 0 ? (
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={() => setShowMenuModal(true)}
+        >
+          <FontAwesome name="ellipsis-v" size={20} color={cores.text} />
+        </TouchableOpacity>
+      </View>
+      <ScrollView
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {filteredProdutos.length === 0 ? (
           <View style={styles.emptyContainer}>
             <FontAwesome name="inbox" size={50} color={cores.textSecondary} />
             <Text style={styles.emptyText}>Nenhum produto cadastrado</Text>
@@ -263,7 +415,7 @@ export default function HomeScreen() {
             </Text>
           </View>
         ) : (
-          produtos.map((produto) => {
+          filteredProdutos.map((produto) => {
             const diasRestantes = calcularDiasRestantes(produto.validade);
             const statusColor = getStatusColor(diasRestantes);
 
@@ -297,6 +449,156 @@ export default function HomeScreen() {
           })
         )}
       </ScrollView>
+
+      <Modal
+        visible={showMenuModal}
+        transparent={true}
+        animationType="none"
+        onRequestClose={() => setShowMenuModal(false)}
+      >
+        <Animated.View
+          style={[
+            styles.menuModal,
+            {
+              opacity: fadeAnim,
+            },
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.menuContent,
+              {
+                transform: [{ translateX: slideAnim }],
+              },
+            ]}
+          >
+            <View style={styles.menuHeader}>
+              <Text style={styles.menuTitle}>Filtros e Busca</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowMenuModal(false)}
+              >
+                <FontAwesome name="close" size={20} color={cores.text} />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar produtos..."
+              placeholderTextColor={cores.textSecondary}
+              value={searchTerm}
+              onChangeText={setSearchTerm}
+            />
+
+            <View style={styles.filterSection}>
+              <Text style={styles.filterTitle}>Status</Text>
+              <TouchableOpacity
+                style={[
+                  styles.filterOption,
+                  filterStatus === "todos" && styles.filterOptionSelected,
+                ]}
+                onPress={() => setFilterStatus("todos")}
+              >
+                <FontAwesome
+                  name="circle"
+                  size={16}
+                  color={
+                    filterStatus === "todos"
+                      ? cores.primary
+                      : cores.textSecondary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.filterOptionText,
+                    filterStatus === "todos" && styles.filterOptionTextSelected,
+                  ]}
+                >
+                  Todos
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.filterOption,
+                  filterStatus === "vencidos" && styles.filterOptionSelected,
+                ]}
+                onPress={() => setFilterStatus("vencidos")}
+              >
+                <FontAwesome
+                  name="circle"
+                  size={16}
+                  color={
+                    filterStatus === "vencidos"
+                      ? "#ff6b6b"
+                      : cores.textSecondary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.filterOptionText,
+                    filterStatus === "vencidos" &&
+                      styles.filterOptionTextSelected,
+                  ]}
+                >
+                  Vencidos
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.filterOption,
+                  filterStatus === "proximos" && styles.filterOptionSelected,
+                ]}
+                onPress={() => setFilterStatus("proximos")}
+              >
+                <FontAwesome
+                  name="circle"
+                  size={16}
+                  color={
+                    filterStatus === "proximos"
+                      ? "#ffd93d"
+                      : cores.textSecondary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.filterOptionText,
+                    filterStatus === "proximos" &&
+                      styles.filterOptionTextSelected,
+                  ]}
+                >
+                  Próximos do Vencimento
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.filterOption,
+                  filterStatus === "ok" && styles.filterOptionSelected,
+                ]}
+                onPress={() => setFilterStatus("ok")}
+              >
+                <FontAwesome
+                  name="circle"
+                  size={16}
+                  color={
+                    filterStatus === "ok" ? "#4CAF50" : cores.textSecondary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.filterOptionText,
+                    filterStatus === "ok" && styles.filterOptionTextSelected,
+                  ]}
+                >
+                  Dentro da Validade
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </Animated.View>
+      </Modal>
 
       <TouchableOpacity
         style={styles.fabButton}

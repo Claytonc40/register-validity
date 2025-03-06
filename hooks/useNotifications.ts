@@ -63,7 +63,10 @@ export function useNotifications() {
       content: {
         title: "Alerta de Validade",
         body: `O produto ${productName} está próximo do vencimento!`,
-        sound: true,
+        sound: "notification.wav",
+        priority: "max",
+        vibrate: [0, 500, 500, 500],
+        sticky: true,
       },
       trigger: {
         type: SchedulableTriggerInputTypes.DATE,
