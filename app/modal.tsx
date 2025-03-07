@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { usePadroes } from "./contexts/PadroesContext";
 import { useProdutos } from "./contexts/ProdutosContext";
 
 // Remova a importação do TextRecognition por enquanto para resolver o erro
@@ -48,19 +49,31 @@ const converterMes = (mesTexto: string): string => {
   return meses[mesTexto.toUpperCase()] || "01";
 };
 
-const extrairData = (texto: string): string | null => {
-  // Padrões comuns de data com rótulos
+const extrairData = (texto: string, padroes: any[]): string | null => {
+  // Primeiro tenta usar os padrões salvos
+  for (const padrao of padroes) {
+    for (const padraoData of padrao.configuracao.padroesData) {
+      const regex = new RegExp(
+        padraoData.replace(/dd\/mm\/yy/g, "\\d{2}\\/\\d{2}\\/\\d{2}"),
+        "i"
+      );
+      const match = texto.match(regex);
+      if (match) {
+        return match[0];
+      }
+    }
+  }
+
+  // Se não encontrar com os padrões salvos, usa os padrões padrão
   const padroesComRotulo = [
-    // Formato dd/MMM/yy
-    /VAL:?\s*(\d{2})\/([A-Za-z]{3})\/(\d{2})/i, // VAL: dd/MMM/yy
-    /VENC\.?:?\s*(\d{2})\/([A-Za-z]{3})\/(\d{2})/i, // VENC: dd/MMM/yy
-    /VAL\.?\/VENC\.?:?\s*(\d{2})\/([A-Za-z]{3})\/(\d{2})/i, // VAL/VENC: dd/MMM/yy
-    // Formatos numéricos
-    /DATA DE VENCIMENTO:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i, // DATA DE VENCIMENTO: dd/mm/yyyy
-    /VAL\.?\/VENC\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i, // VAL/VENC: dd/mm/yyyy
-    /VENC\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i, // VENC: dd/mm/yyyy
-    /VAL\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i, // VAL: dd/mm/yyyy
-    /VALIDADE:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i, // VALIDADE: dd/mm/yyyy
+    /VAL:?\s*(\d{2})\/([A-Za-z]{3})\/(\d{2})/i,
+    /VENC\.?:?\s*(\d{2})\/([A-Za-z]{3})\/(\d{2})/i,
+    /VAL\.?\/VENC\.?:?\s*(\d{2})\/([A-Za-z]{3})\/(\d{2})/i,
+    /DATA DE VENCIMENTO:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i,
+    /VAL\.?\/VENC\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i,
+    /VENC\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i,
+    /VAL\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i,
+    /VALIDADE:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i,
   ];
 
   // Primeiro tenta encontrar datas com rótulos
@@ -108,10 +121,32 @@ const extrairData = (texto: string): string | null => {
   return null;
 };
 
-const extrairProduto = (texto: string): string | null => {
-  const linhas = texto.split("\n");
+const extrairProduto = (texto: string, padroes: any[]): string | null => {
+  // Primeiro tenta usar os padrões salvos
+  for (const padrao of padroes) {
+    // Verifica se o texto contém alguma das palavras-chave do padrão
+    const temPalavraChave = padrao.configuracao.palavrasChave.some(
+      (palavra: string) => texto.toUpperCase().includes(palavra)
+    );
 
-  // Lista de palavras-chave que indicam nome de produto
+    // Verifica se o texto não contém palavras ignoradas
+    const temPalavraIgnorada = padrao.configuracao.palavrasIgnoradas.some(
+      (palavra: string) => texto.toUpperCase().includes(palavra)
+    );
+
+    if (temPalavraChave && !temPalavraIgnorada) {
+      // Procura por exemplos salvos que correspondam ao padrão
+      const exemploCorrespondente = padrao.exemplos.find((exemplo: any) =>
+        texto.toUpperCase().includes(exemplo.textoNome.toUpperCase())
+      );
+
+      if (exemploCorrespondente) {
+        return exemploCorrespondente.textoNome;
+      }
+    }
+  }
+
+  // Se não encontrar com os padrões salvos, usa a lógica padrão
   const palavrasChaveProduto = [
     "TIRAS",
     "MOLHO",
@@ -142,7 +177,7 @@ const extrairProduto = (texto: string): string | null => {
   ];
 
   // Primeiro procura por "Feijão Preto" especificamente
-  for (const linha of linhas) {
+  for (const linha of texto.split("\n")) {
     if (
       linha.toLowerCase().includes("feijão preto") ||
       linha.toLowerCase().includes("feijao preto")
@@ -152,7 +187,7 @@ const extrairProduto = (texto: string): string | null => {
   }
 
   // Procura por linhas que podem ser nomes de produtos
-  for (const linha of linhas) {
+  for (const linha of texto.split("\n")) {
     const linhaUpperCase = linha.toUpperCase();
 
     // Verifica se a linha contém alguma palavra-chave de produto
@@ -217,6 +252,7 @@ export default function CameraModal() {
   const [manualProdutoNome, setManualProdutoNome] = useState("");
 
   const { adicionarProduto, produtos } = useProdutos();
+  const { padroes } = usePadroes();
 
   const salvarProduto = async (nome: string, validade: string) => {
     // Verifica se já existe um produto com o mesmo nome e data de validade
@@ -313,9 +349,9 @@ export default function CameraModal() {
         if (result && result.length > 0) {
           const textoCompleto = result.map((block) => block.text).join("\n");
 
-          // Extrai as informações
-          const nomeProduto = extrairProduto(textoCompleto);
-          const dataVencimento = extrairData(textoCompleto);
+          // Extrai as informações usando os padrões salvos
+          const nomeProduto = extrairProduto(textoCompleto, padroes);
+          const dataVencimento = extrairData(textoCompleto, padroes);
 
           // Se encontrou ambos, salva direto
           if (nomeProduto && dataVencimento) {

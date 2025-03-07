@@ -1,12 +1,17 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useRef, useState } from "react";
 import {
+  Alert,
   Dimensions,
   Image,
   PanResponder,
+  ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
+import MlkitOcr from "react-native-mlkit-ocr";
 import { RegiaoEtiqueta } from "../contexts/PadroesContext";
 
 const styles = StyleSheet.create({
@@ -35,22 +40,44 @@ const styles = StyleSheet.create({
   selection: {
     position: "absolute",
   },
+  textoContainer: {
+    width: "100%",
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: "white",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#dee2e6",
+  },
+  textoExtraido: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: "#495057",
+  },
+  textoSelecionado: {
+    backgroundColor: "#228be6",
+    color: "white",
+  },
 });
 
 interface Props {
   imagem: string;
   onRegionSelected: (regiao: RegiaoEtiqueta) => void;
   tipoRegiao: "nomeProduto" | "dataValidade";
+  regiaoAtual?: RegiaoEtiqueta;
 }
 
 export function RegionSelector({
   imagem,
   onRegionSelected,
   tipoRegiao,
+  regiaoAtual,
 }: Props) {
   const [start, setStart] = useState({ x: 0, y: 0 });
   const [current, setCurrent] = useState({ x: 0, y: 0 });
   const [isSelecting, setIsSelecting] = useState(false);
+  const [textoExtraido, setTextoExtraido] = useState<string[]>([]);
+  const [textoSelecionado, setTextoSelecionado] = useState<string>("");
   const imageRef = useRef<View>(null);
   const [imageLayout, setImageLayout] = useState({
     width: 0,
@@ -58,6 +85,22 @@ export function RegionSelector({
     x: 0,
     y: 0,
   });
+
+  React.useEffect(() => {
+    extrairTexto();
+  }, [imagem]);
+
+  const extrairTexto = async () => {
+    try {
+      const resultado = await MlkitOcr.detectFromUri(imagem);
+      if (resultado && resultado.length > 0) {
+        const textos = resultado.map((block) => block.text);
+        setTextoExtraido(textos);
+      }
+    } catch (error) {
+      console.error("Erro ao extrair texto:", error);
+    }
+  };
 
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -111,6 +154,27 @@ export function RegionSelector({
     };
   };
 
+  const selecionarTexto = async (texto: string) => {
+    setTextoSelecionado(texto);
+    try {
+      const textosSalvos = await AsyncStorage.getItem("@textos_selecionados");
+      const textos = textosSalvos ? JSON.parse(textosSalvos) : [];
+      textos.push({
+        texto,
+        tipo: tipoRegiao,
+        data: new Date().toISOString(),
+      });
+      await AsyncStorage.setItem(
+        "@textos_selecionados",
+        JSON.stringify(textos)
+      );
+      Alert.alert("Sucesso", "Texto selecionado e salvo com sucesso!");
+    } catch (error) {
+      console.error("Erro ao salvar texto:", error);
+      Alert.alert("Erro", "Não foi possível salvar o texto selecionado");
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.instrucao}>
@@ -136,6 +200,26 @@ export function RegionSelector({
         {isSelecting && (
           <View style={[styles.selection, getSelectionStyle()]} />
         )}
+      </View>
+
+      <View style={styles.textoContainer}>
+        <ScrollView>
+          {textoExtraido.map((texto, index) => (
+            <TouchableOpacity
+              key={index}
+              onPress={() => selecionarTexto(texto)}
+            >
+              <Text
+                style={[
+                  styles.textoExtraido,
+                  textoSelecionado === texto && styles.textoSelecionado,
+                ]}
+              >
+                {texto}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
     </View>
   );

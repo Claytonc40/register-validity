@@ -22,6 +22,11 @@ export interface PadraoEtiqueta {
     nomeProduto: RegiaoEtiqueta;
     dataValidade: RegiaoEtiqueta;
   };
+  configuracao: {
+    palavrasChave: string[];
+    palavrasIgnoradas: string[];
+    padroesData: string[];
+  };
   exemplos: ExemploPadrao[];
   totalUsos: number;
   taxaAcerto: number;

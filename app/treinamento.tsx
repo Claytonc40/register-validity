@@ -1,10 +1,11 @@
 import { FontAwesome } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { Stack } from "expo-router";
+import { Stack } from "expo-router/";
 import React, { useState } from "react";
 import {
   Alert,
   Image,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -15,7 +16,13 @@ import MlkitOcr from "react-native-mlkit-ocr";
 import { RegionSelector } from "./components/RegionSelector";
 import { RegiaoEtiqueta, usePadroes } from "./contexts/PadroesContext";
 
-type Etapa = "inicial" | "captura" | "nome" | "regioes" | "confirmacao";
+type Etapa = "inicial" | "captura" | "configuracao" | "regioes" | "confirmacao";
+
+interface ConfiguracaoPadrao {
+  palavrasChave: string[];
+  palavrasIgnoradas: string[];
+  padroesData: string[];
+}
 
 export default function TreinamentoScreen() {
   const [etapa, setEtapa] = useState<Etapa>("inicial");
@@ -25,34 +32,114 @@ export default function TreinamentoScreen() {
     nomeProduto?: RegiaoEtiqueta;
     dataValidade?: RegiaoEtiqueta;
   }>({});
-  const [textoReconhecido, setTextoReconhecido] = useState<{
-    nome: string;
-    data: string;
-  }>({ nome: "", data: "" });
+  const [configuracao, setConfiguracao] = useState<ConfiguracaoPadrao>({
+    palavrasChave: [],
+    palavrasIgnoradas: [],
+    padroesData: [],
+  });
+  const [novaPalavraChave, setNovaPalavraChave] = useState("");
+  const [novaPalavraIgnorada, setNovaPalavraIgnorada] = useState("");
+  const [novoPadraoData, setNovoPadraoData] = useState("");
 
   const { adicionarPadrao } = usePadroes();
 
   const iniciarTreinamento = async () => {
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
+    Alert.alert("Selecionar Imagem", "Escolha como deseja obter a imagem", [
+      {
+        text: "Câmera",
+        onPress: async () => {
+          const result = await ImagePicker.launchCameraAsync({
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 1,
+          });
 
-    if (!result.canceled) {
-      setImagem(result.assets[0].uri);
-      setEtapa("nome");
+          if (!result.canceled) {
+            setImagem(result.assets[0].uri);
+            setEtapa("configuracao");
+          }
+        },
+      },
+      {
+        text: "Galeria",
+        onPress: async () => {
+          const result = await ImagePicker.launchImageLibraryAsync({
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 1,
+          });
+
+          if (!result.canceled) {
+            setImagem(result.assets[0].uri);
+            setEtapa("configuracao");
+          }
+        },
+      },
+      {
+        text: "Cancelar",
+        style: "cancel",
+      },
+    ]);
+  };
+
+  const adicionarPalavraChave = () => {
+    if (novaPalavraChave.trim()) {
+      setConfiguracao((prev) => ({
+        ...prev,
+        palavrasChave: [
+          ...prev.palavrasChave,
+          novaPalavraChave.trim().toUpperCase(),
+        ],
+      }));
+      setNovaPalavraChave("");
     }
+  };
+
+  const adicionarPalavraIgnorada = () => {
+    if (novaPalavraIgnorada.trim()) {
+      setConfiguracao((prev) => ({
+        ...prev,
+        palavrasIgnoradas: [
+          ...prev.palavrasIgnoradas,
+          novaPalavraIgnorada.trim().toUpperCase(),
+        ],
+      }));
+      setNovaPalavraIgnorada("");
+    }
+  };
+
+  const adicionarPadraoData = () => {
+    if (novoPadraoData.trim()) {
+      setConfiguracao((prev) => ({
+        ...prev,
+        padroesData: [...prev.padroesData, novoPadraoData.trim()],
+      }));
+      setNovoPadraoData("");
+    }
+  };
+
+  const removerItem = (tipo: keyof ConfiguracaoPadrao, index: number) => {
+    setConfiguracao((prev) => ({
+      ...prev,
+      [tipo]: prev[tipo].filter((_, i) => i !== index),
+    }));
   };
 
   const handleRegionSelected = (
     tipo: "nomeProduto" | "dataValidade",
-    regiao: RegiaoEtiqueta,
+    regiao: RegiaoEtiqueta
   ) => {
-    setRegioes((prev) => ({ ...prev, [tipo]: regiao }));
+    const regiaoAjustada = {
+      ...regiao,
+      x: Math.max(0, Math.min(100, regiao.x)),
+      y: Math.max(0, Math.min(100, regiao.y)),
+      width: Math.max(5, Math.min(100 - regiao.x, regiao.width)),
+      height: Math.max(5, Math.min(100 - regiao.y, regiao.height)),
+    };
 
-    // Se já selecionou ambas as regiões, vai para confirmação
-    if (tipo === "dataValidade" || regioes.dataValidade) {
+    setRegioes((prev) => ({ ...prev, [tipo]: regiaoAjustada }));
+
+    if (regioes.nomeProduto && regioes.dataValidade) {
       processarRegioes();
     }
   };
@@ -62,40 +149,124 @@ export default function TreinamentoScreen() {
 
     try {
       const resultado = await MlkitOcr.detectFromUri(imagem);
-
       if (resultado && resultado.length > 0) {
         const textoCompleto = resultado.map((block) => block.text).join("\n");
 
-        // Aqui você implementaria a lógica para extrair o texto das regiões específicas
-        // Por enquanto, vamos usar todo o texto reconhecido
-        setTextoReconhecido({
-          nome: textoCompleto.split("\n")[0] || "",
-          data: textoCompleto.split("\n")[1] || "",
-        });
-      }
+        const textoNome = extrairTextoRegiao(resultado, regioes.nomeProduto);
 
-      setEtapa("confirmacao");
+        const textoData = extrairTextoRegiao(resultado, regioes.dataValidade);
+
+        if (textoNome) {
+          setNovaPalavraChave(textoNome);
+          adicionarPalavraChave();
+        }
+
+        const padroesDataEncontrados = identificarPadroesData(textoData);
+        padroesDataEncontrados.forEach((padrao) => {
+          setNovoPadraoData(padrao);
+          adicionarPadraoData();
+        });
+
+        setEtapa("confirmacao");
+      }
     } catch (error) {
       console.error("Erro ao processar texto:", error);
       Alert.alert("Erro", "Houve um erro ao processar o texto da imagem");
     }
   };
 
+  const extrairTextoRegiao = (resultado: any[], regiao: RegiaoEtiqueta) => {
+    if (!resultado || resultado.length === 0) return "";
+
+    return resultado
+      .filter((block) => {
+        if (!block.boundingBox) return false;
+
+        // Obtém as dimensões da imagem original
+        const imageWidth = block.boundingBox.width || 1;
+        const imageHeight = block.boundingBox.height || 1;
+
+        // Converte as coordenadas do bloco para porcentagem
+        const blockX = (block.boundingBox.left / imageWidth) * 100;
+        const blockY = (block.boundingBox.top / imageHeight) * 100;
+        const blockWidth =
+          ((block.boundingBox.right - block.boundingBox.left) / imageWidth) *
+          100;
+        const blockHeight =
+          ((block.boundingBox.bottom - block.boundingBox.top) / imageHeight) *
+          100;
+
+        // Verifica se o bloco está dentro da região selecionada
+        return (
+          blockX >= regiao.x &&
+          blockX + blockWidth <= regiao.x + regiao.width &&
+          blockY >= regiao.y &&
+          blockY + blockHeight <= regiao.y + regiao.height
+        );
+      })
+      .map((block) => block.text)
+      .join(" ")
+      .trim();
+  };
+
+  const identificarPadroesData = (texto: string) => {
+    const padroes: string[] = [];
+    const regexData = [
+      /(\d{2}\/\d{2}\/\d{4})/g,
+      /(\d{2}\/\d{2}\/\d{2})/g,
+      /(\d{2}-\d{2}-\d{4})/g,
+      /(\d{2}-\d{2}-\d{2})/g,
+      /(\d{2}\.\d{2}\.\d{4})/g,
+      /(\d{2}\.\d{2}\.\d{2})/g,
+    ];
+
+    regexData.forEach((regex) => {
+      const matches = texto.match(regex);
+      if (matches) {
+        padroes.push(...matches);
+      }
+    });
+
+    return [...new Set(padroes)];
+  };
+
   const salvarPadrao = async () => {
-    if (!imagem || !regioes.nomeProduto || !regioes.dataValidade) return;
+    if (!nomePadrao.trim()) {
+      Alert.alert("Erro", "Por favor, insira um nome para o padrão");
+      return;
+    }
+
+    if (!imagem || !regioes.nomeProduto || !regioes.dataValidade) {
+      Alert.alert("Erro", "Por favor, selecione todas as regiões necessárias");
+      return;
+    }
 
     try {
+      const resultado = await MlkitOcr.detectFromUri(imagem);
+      if (!resultado || resultado.length === 0) {
+        Alert.alert("Erro", "Não foi possível detectar texto na imagem");
+        return;
+      }
+
+      const textoNome = extrairTextoRegiao(resultado, regioes.nomeProduto);
+      const textoData = extrairTextoRegiao(resultado, regioes.dataValidade);
+
       await adicionarPadrao({
         nome: nomePadrao,
         regioes: {
           nomeProduto: regioes.nomeProduto,
           dataValidade: regioes.dataValidade,
         },
+        configuracao: {
+          palavrasChave: configuracao.palavrasChave,
+          palavrasIgnoradas: configuracao.palavrasIgnoradas,
+          padroesData: configuracao.padroesData,
+        },
         exemplos: [
           {
             imagem,
-            textoNome: textoReconhecido.nome,
-            textoData: textoReconhecido.data,
+            textoNome,
+            textoData,
             confianca: 1,
           },
         ],
@@ -105,12 +276,15 @@ export default function TreinamentoScreen() {
         {
           text: "OK",
           onPress: () => {
-            // Resetar estado
             setEtapa("inicial");
             setImagem(null);
             setNomePadrao("");
             setRegioes({});
-            setTextoReconhecido({ nome: "", data: "" });
+            setConfiguracao({
+              palavrasChave: [],
+              palavrasIgnoradas: [],
+              padroesData: [],
+            });
           },
         },
       ]);
@@ -120,6 +294,152 @@ export default function TreinamentoScreen() {
     }
   };
 
+  const renderConfiguracao = () => (
+    <ScrollView style={styles.configuracaoContainer}>
+      <Text style={styles.titulo}>Configurar Padrão</Text>
+
+      <View style={styles.inputContainer}>
+        <Text style={styles.subtitulo}>
+          Palavras-chave para identificar o produto:
+        </Text>
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.input}
+            value={novaPalavraChave}
+            onChangeText={setNovaPalavraChave}
+            placeholder="Ex: FEIJÃO, MOLHO"
+          />
+          <TouchableOpacity
+            style={styles.botaoAdicionar}
+            onPress={adicionarPalavraChave}
+          >
+            <FontAwesome name="plus" size={20} color="white" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.listaContainer}>
+          {configuracao.palavrasChave.map((palavra, index) => (
+            <View key={index} style={styles.itemLista}>
+              <Text style={styles.itemTexto}>{palavra}</Text>
+              <TouchableOpacity
+                onPress={() => removerItem("palavrasChave", index)}
+              >
+                <FontAwesome name="times" size={16} color="#fa5252" />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.inputContainer}>
+        <Text style={styles.subtitulo}>Palavras a serem ignoradas:</Text>
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.input}
+            value={novaPalavraIgnorada}
+            onChangeText={setNovaPalavraIgnorada}
+            placeholder="Ex: LOTE, FAB"
+          />
+          <TouchableOpacity
+            style={styles.botaoAdicionar}
+            onPress={adicionarPalavraIgnorada}
+          >
+            <FontAwesome name="plus" size={20} color="white" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.listaContainer}>
+          {configuracao.palavrasIgnoradas.map((palavra, index) => (
+            <View key={index} style={styles.itemLista}>
+              <Text style={styles.itemTexto}>{palavra}</Text>
+              <TouchableOpacity
+                onPress={() => removerItem("palavrasIgnoradas", index)}
+              >
+                <FontAwesome name="times" size={16} color="#fa5252" />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.inputContainer}>
+        <Text style={styles.subtitulo}>Padrões de data:</Text>
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.input}
+            value={novoPadraoData}
+            onChangeText={setNovoPadraoData}
+            placeholder="Ex: VAL: dd/mm/yy"
+          />
+          <TouchableOpacity
+            style={styles.botaoAdicionar}
+            onPress={adicionarPadraoData}
+          >
+            <FontAwesome name="plus" size={20} color="white" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.listaContainer}>
+          {configuracao.padroesData.map((padrao, index) => (
+            <View key={index} style={styles.itemLista}>
+              <Text style={styles.itemTexto}>{padrao}</Text>
+              <TouchableOpacity
+                onPress={() => removerItem("padroesData", index)}
+              >
+                <FontAwesome name="times" size={16} color="#fa5252" />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={styles.botaoProsseguir}
+        onPress={() => setEtapa("regioes")}
+        disabled={
+          configuracao.palavrasChave.length === 0 ||
+          configuracao.padroesData.length === 0
+        }
+      >
+        <Text style={styles.botaoTexto}>Prosseguir</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  const renderRegioes = () => (
+    <View style={styles.regioesContainer}>
+      <Text style={styles.instrucaoRegiao}>
+        {!regioes.nomeProduto
+          ? "Selecione a região onde está o nome do produto"
+          : "Selecione a região onde está a data de validade"}
+      </Text>
+      {!regioes.nomeProduto ? (
+        <RegionSelector
+          imagem={imagem!}
+          tipoRegiao="nomeProduto"
+          onRegionSelected={(regiao) =>
+            handleRegionSelected("nomeProduto", regiao)
+          }
+          regiaoAtual={regioes.nomeProduto}
+        />
+      ) : !regioes.dataValidade ? (
+        <RegionSelector
+          imagem={imagem!}
+          tipoRegiao="dataValidade"
+          onRegionSelected={(regiao) =>
+            handleRegionSelected("dataValidade", regiao)
+          }
+          regiaoAtual={regioes.dataValidade}
+        />
+      ) : null}
+      {regioes.nomeProduto && regioes.dataValidade && (
+        <TouchableOpacity
+          style={styles.botaoConfirmar}
+          onPress={() => setEtapa("confirmacao")}
+        >
+          <Text style={styles.botaoTexto}>Confirmar Seleção</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
   const renderEtapa = () => {
     switch (etapa) {
       case "inicial":
@@ -128,84 +448,49 @@ export default function TreinamentoScreen() {
             <FontAwesome name="graduation-cap" size={60} color="#228be6" />
             <Text style={styles.titulo}>Treinar Reconhecimento</Text>
             <Text style={styles.descricao}>
-              Tire uma foto de uma etiqueta e marque onde estão as informações
-              importantes. Isso ajudará o app a reconhecer melhor as etiquetas
-              no futuro.
+              Tire uma foto de uma etiqueta ou selecione uma imagem da galeria
+              para configurar os padrões de reconhecimento. Isso ajudará o app a
+              identificar melhor as informações nas etiquetas.
             </Text>
             <TouchableOpacity
               style={styles.botaoIniciar}
               onPress={iniciarTreinamento}
             >
-              <Text style={styles.botaoTexto}>Começar Treinamento</Text>
+              <Text style={styles.botaoTexto}>Selecionar Imagem</Text>
             </TouchableOpacity>
           </View>
         );
 
-      case "nome":
-        return (
-          <View style={styles.nomeContainer}>
-            <Text style={styles.titulo}>Nome do Padrão</Text>
-            <Text style={styles.descricao}>
-              Dê um nome para este padrão de etiqueta (ex: "Etiqueta
-              McDonald's", "Feijão Preto")
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={nomePadrao}
-              onChangeText={setNomePadrao}
-              placeholder="Nome do padrão"
-            />
-            <TouchableOpacity
-              style={styles.botaoProsseguir}
-              onPress={() => setEtapa("regioes")}
-              disabled={!nomePadrao.trim()}
-            >
-              <Text style={styles.botaoTexto}>Prosseguir</Text>
-            </TouchableOpacity>
-          </View>
-        );
+      case "configuracao":
+        return renderConfiguracao();
 
       case "regioes":
-        return (
-          <View style={styles.regioesContainer}>
-            {!regioes.nomeProduto ? (
-              <RegionSelector
-                imagem={imagem!}
-                tipoRegiao="nomeProduto"
-                onRegionSelected={(regiao) =>
-                  handleRegionSelected("nomeProduto", regiao)
-                }
-              />
-            ) : !regioes.dataValidade ? (
-              <RegionSelector
-                imagem={imagem!}
-                tipoRegiao="dataValidade"
-                onRegionSelected={(regiao) =>
-                  handleRegionSelected("dataValidade", regiao)
-                }
-              />
-            ) : null}
-          </View>
-        );
+        return renderRegioes();
 
       case "confirmacao":
         return (
           <View style={styles.confirmacaoContainer}>
             <Text style={styles.titulo}>Confirmar Informações</Text>
-
             <View style={styles.previewContainer}>
               <Image source={{ uri: imagem! }} style={styles.previewImage} />
-
               <View style={styles.infoContainer}>
                 <Text style={styles.label}>Nome do Padrão:</Text>
-                <Text style={styles.valor}>{nomePadrao}</Text>
-
-                <Text style={styles.label}>Texto Reconhecido:</Text>
-                <Text style={styles.valor}>Nome: {textoReconhecido.nome}</Text>
-                <Text style={styles.valor}>Data: {textoReconhecido.data}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={nomePadrao}
+                  onChangeText={setNomePadrao}
+                  placeholder="Digite um nome para o padrão"
+                />
+                <Text style={styles.label}>Palavras-chave:</Text>
+                <Text style={styles.valor}>
+                  {configuracao.palavrasChave.join(", ")}
+                </Text>
+                <Text style={styles.label}>Padrões de data:</Text>
+                <Text style={styles.valor}>
+                  {configuracao.padroesData.join("\n")}
+                </Text>
               </View>
             </View>
-
             <View style={styles.botoesContainer}>
               <TouchableOpacity
                 style={[styles.botao, styles.botaoCancelar]}
@@ -213,7 +498,6 @@ export default function TreinamentoScreen() {
               >
                 <Text style={styles.botaoTexto}>Voltar</Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 style={[styles.botao, styles.botaoConfirmar]}
                 onPress={salvarPadrao}
@@ -250,13 +534,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 24,
   },
+  configuracaoContainer: {
+    flex: 1,
+    padding: 24,
+  },
   titulo: {
     fontSize: 24,
     fontWeight: "bold",
     color: "#343a40",
-    marginTop: 16,
-    marginBottom: 12,
-    textAlign: "center",
+    marginBottom: 16,
+  },
+  subtitulo: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#495057",
+    marginBottom: 8,
   },
   descricao: {
     fontSize: 16,
@@ -264,6 +556,50 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 24,
     lineHeight: 24,
+  },
+  inputContainer: {
+    marginBottom: 24,
+  },
+  inputRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 8,
+  },
+  input: {
+    flex: 1,
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: "#dee2e6",
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+  },
+  botaoAdicionar: {
+    backgroundColor: "#228be6",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  listaContainer: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "#dee2e6",
+  },
+  itemLista: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#dee2e6",
+  },
+  itemTexto: {
+    fontSize: 16,
+    color: "#495057",
   },
   botaoIniciar: {
     backgroundColor: "#228be6",
@@ -273,29 +609,17 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
   },
-  botaoTexto: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  nomeContainer: {
-    flex: 1,
-    padding: 24,
-  },
-  input: {
-    backgroundColor: "white",
-    borderWidth: 1,
-    borderColor: "#dee2e6",
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    marginBottom: 24,
-  },
   botaoProsseguir: {
     backgroundColor: "#228be6",
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
+    marginTop: 24,
+  },
+  botaoTexto: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
   },
   regioesContainer: {
     flex: 1,
@@ -345,5 +669,11 @@ const styles = StyleSheet.create({
   },
   botaoConfirmar: {
     backgroundColor: "#40c057",
+  },
+  instrucaoRegiao: {
+    fontSize: 16,
+    color: "#495057",
+    marginBottom: 16,
+    textAlign: "center",
   },
 });

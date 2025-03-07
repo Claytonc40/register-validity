@@ -1,19 +1,76 @@
 import { useNotifications } from "@/hooks/useNotifications";
-import { FontAwesome } from "@expo/vector-icons";
-import { router } from "expo-router/";
-import React from "react";
 import {
+  agendarNotificacao,
+  configurarNotificacoes,
+} from "@/services/notifications.config";
+import { FontAwesome } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router/";
+import React, { useEffect, useState } from "react";
+import {
+  Alert,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useProdutos } from "../../contexts/ProdutosContext";
 import { useTema } from "../../contexts/TemaContext";
 
 const ConfiguracoesScreen = () => {
   const { tema, mudarTema, cores } = useTema();
   const { scheduleProductNotification } = useNotifications();
+  const { produtos } = useProdutos();
+  const [notificacoesAtivas, setNotificacoesAtivas] = useState(true);
+
+  // Carregar estado das notificações
+  useEffect(() => {
+    const carregarEstadoNotificacoes = async () => {
+      try {
+        const estado = await AsyncStorage.getItem("@notificacoes_ativas");
+        if (estado !== null) {
+          setNotificacoesAtivas(estado === "true");
+        }
+      } catch (error) {
+        console.error("Erro ao carregar estado das notificações:", error);
+      }
+    };
+
+    carregarEstadoNotificacoes();
+  }, []);
+
+  // Salvar estado das notificações quando mudar
+  const toggleNotificacoes = async (valor: boolean) => {
+    try {
+      if (valor) {
+        // Solicita permissão quando ativar notificações
+        await configurarNotificacoes();
+      }
+
+      setNotificacoesAtivas(valor);
+      await AsyncStorage.setItem("@notificacoes_ativas", valor.toString());
+
+      if (valor) {
+        Alert.alert(
+          "Notificações ativadas",
+          "Você receberá notificações sobre produtos próximos do vencimento."
+        );
+      } else {
+        Alert.alert(
+          "Notificações desativadas",
+          "Você não receberá mais notificações sobre produtos."
+        );
+      }
+    } catch (error) {
+      console.error("Erro ao salvar estado das notificações:", error);
+      Alert.alert(
+        "Erro",
+        "Não foi possível ativar as notificações. Verifique as permissões do aplicativo."
+      );
+    }
+  };
 
   const handleTesteNotificacao = async () => {
     const dataNotificacao = new Date(Date.now() + 10 * 1000); // 10 segundos
@@ -23,6 +80,43 @@ const ConfiguracoesScreen = () => {
       alert("Notificação agendada! Você receberá em 10 segundos.");
     } catch (error) {
       alert("Erro ao agendar notificação: " + (error as Error).message);
+    }
+  };
+
+  const handleTesteNotificacaoProdutos = async () => {
+    if (produtos.length === 0) {
+      Alert.alert(
+        "Sem produtos",
+        "Adicione produtos para testar as notificações."
+      );
+      return;
+    }
+
+    try {
+      // Notificação para produtos vencendo hoje
+      const mensagem =
+        produtos.length === 1
+          ? `O produto ${produtos[0].nome} está próximo do vencimento!`
+          : `Você tem ${produtos.length} produtos próximos do vencimento!`;
+
+      // Agenda para daqui a 5 segundos para teste
+      const testeData = new Date(Date.now() + 5000);
+
+      await agendarNotificacao(
+        "Atenção: Produtos Vencendo",
+        mensagem,
+        testeData
+      );
+
+      Alert.alert(
+        "Notificação agendada!",
+        "Você receberá uma notificação em 5 segundos com os produtos."
+      );
+    } catch (error) {
+      Alert.alert(
+        "Erro",
+        "Não foi possível agendar a notificação: " + (error as Error).message
+      );
     }
   };
 
@@ -59,10 +153,8 @@ const ConfiguracoesScreen = () => {
           <Text style={[styles.sectionTitle, { color: cores.textSecondary }]}>
             Notificações
           </Text>
-          <TouchableOpacity
-            style={[styles.menuItem, { backgroundColor: cores.card }]}
-            onPress={handleTesteNotificacao}
-          >
+
+          <View style={[styles.menuItem, { backgroundColor: cores.card }]}>
             <View
               style={[
                 styles.menuItemIcon,
@@ -73,7 +165,41 @@ const ConfiguracoesScreen = () => {
             </View>
             <View style={styles.menuItemContent}>
               <Text style={[styles.menuItemTitle, { color: cores.text }]}>
-                Testar Notificações
+                Ativar Notificações
+              </Text>
+              <Text
+                style={[
+                  styles.menuItemDescription,
+                  { color: cores.textSecondary },
+                ]}
+              >
+                Receber alertas sobre produtos próximos do vencimento
+              </Text>
+            </View>
+            <Switch
+              trackColor={{ false: "#767577", true: cores.primaryLight }}
+              thumbColor={notificacoesAtivas ? cores.primary : "#f4f3f4"}
+              ios_backgroundColor="#3e3e3e"
+              onValueChange={toggleNotificacoes}
+              value={notificacoesAtivas}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.menuItem, { backgroundColor: cores.card }]}
+            onPress={handleTesteNotificacao}
+          >
+            <View
+              style={[
+                styles.menuItemIcon,
+                { backgroundColor: cores.primaryLight },
+              ]}
+            >
+              <FontAwesome name="bell-o" size={24} color={cores.primary} />
+            </View>
+            <View style={styles.menuItemContent}>
+              <Text style={[styles.menuItemTitle, { color: cores.text }]}>
+                Testar Notificação Simples
               </Text>
               <Text
                 style={[
@@ -82,6 +208,42 @@ const ConfiguracoesScreen = () => {
                 ]}
               >
                 Enviar uma notificação de teste em 10 segundos
+              </Text>
+            </View>
+            <FontAwesome
+              name="chevron-right"
+              size={16}
+              color={cores.textSecondary}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.menuItem, { backgroundColor: cores.card }]}
+            onPress={handleTesteNotificacaoProdutos}
+          >
+            <View
+              style={[
+                styles.menuItemIcon,
+                { backgroundColor: cores.primaryLight },
+              ]}
+            >
+              <FontAwesome
+                name="shopping-basket"
+                size={24}
+                color={cores.primary}
+              />
+            </View>
+            <View style={styles.menuItemContent}>
+              <Text style={[styles.menuItemTitle, { color: cores.text }]}>
+                Testar Notificação de Produtos
+              </Text>
+              <Text
+                style={[
+                  styles.menuItemDescription,
+                  { color: cores.textSecondary },
+                ]}
+              >
+                Enviar notificação com produtos em 5 segundos
               </Text>
             </View>
             <FontAwesome
