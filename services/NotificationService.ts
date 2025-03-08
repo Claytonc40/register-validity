@@ -1,9 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
-import {
-  agendarNotificacao,
-  configurarNotificacoes,
-} from "./notifications.config";
+import { configurarNotificacoes } from "./notifications.config";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -30,10 +27,15 @@ export class NotificationService {
       if (horarioSalvo) {
         return new Date(Number(horarioSalvo));
       }
-      return new Date(new Date().setHours(7, 0, 0, 0)); // Padrão: 7h da manhã
+      // Horário padrão: 7h da manhã
+      const horarioPadrao = new Date();
+      horarioPadrao.setHours(7, 0, 0, 0);
+      return horarioPadrao;
     } catch (error) {
-      console.error("Erro ao obter horário das notificações:", error);
-      return new Date(new Date().setHours(7, 0, 0, 0));
+      console.error("Erro ao obter horário de notificação:", error);
+      const horarioPadrao = new Date();
+      horarioPadrao.setHours(7, 0, 0, 0);
+      return horarioPadrao;
     }
   }
 
@@ -42,6 +44,7 @@ export class NotificationService {
     expirationDate: Date
   ): Promise<void> {
     try {
+      // Verificar se as notificações estão ativas
       const notificacoesAtivas = await AsyncStorage.getItem(
         "@notificacoes_ativas"
       );
@@ -50,7 +53,10 @@ export class NotificationService {
         return;
       }
 
+      // Obter horário de notificação configurado
       const horarioNotificacao = await this.getNotificationTime();
+
+      // Ajustar a data de expiração para o horário configurado
       const dataNotificacao = new Date(expirationDate);
       dataNotificacao.setHours(
         horarioNotificacao.getHours(),
@@ -59,11 +65,31 @@ export class NotificationService {
         0
       );
 
-      const message = `O produto ${productName} está próximo do vencimento!`;
-      await agendarNotificacao("Aviso de Vencimento", message, dataNotificacao);
+      // Se a data já passou, não agendar
+      if (dataNotificacao < new Date()) {
+        console.log("Data de notificação no passado, ignorando");
+        return;
+      }
+
+      // Agendar notificação diretamente
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Produto Próximo do Vencimento",
+          body: `O produto ${productName} está próximo da data de validade!`,
+          sound: true,
+          priority: Notifications.AndroidNotificationPriority.HIGH,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: dataNotificacao,
+        },
+      });
+
+      console.log(
+        `Notificação agendada para produto ${productName} na data ${dataNotificacao.toLocaleString()}`
+      );
     } catch (error) {
-      console.error("Erro ao agendar notificação de vencimento:", error);
-      throw error;
+      console.error("Erro ao agendar notificação de produto:", error);
     }
   }
 

@@ -15,7 +15,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { testarNotificacao } from "../../../services/notifications.config";
 import { useTema } from "../../contexts/TemaContext";
 
 const ConfiguracoesScreen = () => {
@@ -126,29 +125,6 @@ const ConfiguracoesScreen = () => {
     }
   };
 
-  const handleTesteNotificacao = async () => {
-    if (!notificacoesAtivas) {
-      Alert.alert(
-        "Notificações Desativadas",
-        "Ative as notificações para testar."
-      );
-      return;
-    }
-
-    try {
-      // Usa a função dedicada para teste de notificações
-      await testarNotificacao();
-
-      Alert.alert(
-        "Notificação Enviada",
-        "Uma notificação de teste foi enviada e deve aparecer imediatamente."
-      );
-    } catch (error) {
-      console.error("Erro ao testar notificação:", error);
-      Alert.alert("Erro", "Não foi possível enviar a notificação de teste.");
-    }
-  };
-
   const salvarDiasAntecedencia = async (dias: string) => {
     try {
       const diasNum = parseInt(dias);
@@ -215,7 +191,7 @@ const ConfiguracoesScreen = () => {
             </View>
             <View style={styles.menuItemContent}>
               <Text style={[styles.menuItemTitle, { color: cores.text }]}>
-                Ativar Notificações
+                Notificações
               </Text>
               <Text
                 style={[
@@ -223,7 +199,7 @@ const ConfiguracoesScreen = () => {
                   { color: cores.textSecondary },
                 ]}
               >
-                Receber alertas sobre produtos próximos do vencimento
+                {notificacoesAtivas ? "Ativadas" : "Desativadas"}
               </Text>
             </View>
             <Switch
@@ -234,131 +210,118 @@ const ConfiguracoesScreen = () => {
             />
           </View>
 
-          <TouchableOpacity
-            style={[styles.menuItem, { backgroundColor: cores.card }]}
-            onPress={() => setShowTimePicker(true)}
-          >
-            <View
-              style={[
-                styles.menuItemIcon,
-                { backgroundColor: cores.primaryLight },
-              ]}
-            >
-              <FontAwesome name="clock-o" size={24} color={cores.primary} />
-            </View>
-            <View style={styles.menuItemContent}>
-              <Text style={[styles.menuItemTitle, { color: cores.text }]}>
-                Horário das Notificações
-              </Text>
-              <Text
-                style={[
-                  styles.menuItemDescription,
-                  { color: cores.textSecondary },
-                ]}
+          {/* Opções de notificação visíveis apenas quando notificações estão ativas */}
+          {notificacoesAtivas && (
+            <>
+              {/* Opção para configurar horário */}
+              <TouchableOpacity
+                style={[styles.menuItem, { backgroundColor: cores.card }]}
+                onPress={() => setShowTimePicker(true)}
               >
-                Notificar diariamente às {formatarHora(horarioNotificacao)}
-              </Text>
-            </View>
-            <FontAwesome
-              name="chevron-right"
-              size={16}
-              color={cores.textSecondary}
-            />
-          </TouchableOpacity>
+                <View
+                  style={[
+                    styles.menuItemIcon,
+                    { backgroundColor: cores.primaryLight },
+                  ]}
+                >
+                  <FontAwesome name="clock-o" size={24} color={cores.primary} />
+                </View>
+                <View style={styles.menuItemContent}>
+                  <Text style={[styles.menuItemTitle, { color: cores.text }]}>
+                    Horário das Notificações
+                  </Text>
+                  <Text
+                    style={[
+                      styles.menuItemDescription,
+                      { color: cores.textSecondary },
+                    ]}
+                  >
+                    {formatarHora(horarioNotificacao)}
+                  </Text>
+                </View>
+                <FontAwesome
+                  name="chevron-right"
+                  size={16}
+                  color={cores.textSecondary}
+                />
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.menuItem, { backgroundColor: cores.card }]}
-            onPress={() => setShowDiasModal(true)}
-          >
-            <View
-              style={[
-                styles.menuItemIcon,
-                { backgroundColor: cores.primaryLight },
-              ]}
-            >
-              <FontAwesome name="calendar" size={24} color={cores.primary} />
-            </View>
-            <View style={styles.menuItemContent}>
-              <Text style={[styles.menuItemTitle, { color: cores.text }]}>
-                Antecedência do Aviso
-              </Text>
-              <Text
-                style={[
-                  styles.menuItemDescription,
-                  { color: cores.textSecondary },
-                ]}
+              {/* Opção para configurar dias de antecedência */}
+              <TouchableOpacity
+                style={[styles.menuItem, { backgroundColor: cores.card }]}
+                onPress={() => setShowDiasModal(true)}
               >
-                Avisar {diasAntecedencia} dia(s) antes do vencimento
-              </Text>
-            </View>
-            <FontAwesome
-              name="chevron-right"
-              size={16}
-              color={cores.textSecondary}
-            />
-          </TouchableOpacity>
+                <View
+                  style={[
+                    styles.menuItemIcon,
+                    { backgroundColor: cores.primaryLight },
+                  ]}
+                >
+                  <FontAwesome
+                    name="calendar"
+                    size={24}
+                    color={cores.primary}
+                  />
+                </View>
+                <View style={styles.menuItemContent}>
+                  <Text style={[styles.menuItemTitle, { color: cores.text }]}>
+                    Antecedência do Aviso
+                  </Text>
+                  <Text
+                    style={[
+                      styles.menuItemDescription,
+                      { color: cores.textSecondary },
+                    ]}
+                  >
+                    Avisar {diasAntecedencia} dia(s) antes do vencimento
+                  </Text>
+                </View>
+                <FontAwesome
+                  name="chevron-right"
+                  size={16}
+                  color={cores.textSecondary}
+                />
+              </TouchableOpacity>
 
-          <View style={[styles.menuItem, { backgroundColor: cores.card }]}>
-            <View
-              style={[
-                styles.menuItemIcon,
-                { backgroundColor: cores.primaryLight },
-              ]}
-            >
-              <FontAwesome name="exclamation" size={24} color={cores.primary} />
-            </View>
-            <View style={styles.menuItemContent}>
-              <Text style={[styles.menuItemTitle, { color: cores.text }]}>
-                Aviso no Dia do Vencimento
-              </Text>
-              <Text
-                style={[
-                  styles.menuItemDescription,
-                  { color: cores.textSecondary },
-                ]}
-              >
-                Receber alerta no dia do vencimento
-              </Text>
-            </View>
-            <Switch
-              trackColor={{ false: cores.border, true: cores.primary + "80" }}
-              thumbColor={avisarNoDiaVencimento ? cores.primary : "#f4f3f4"}
-              onValueChange={toggleAvisarNoDia}
-              value={avisarNoDiaVencimento}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.menuItem, { backgroundColor: cores.card }]}
-            onPress={handleTesteNotificacao}
-          >
-            <View
-              style={[
-                styles.menuItemIcon,
-                { backgroundColor: cores.primaryLight },
-              ]}
-            >
-              <FontAwesome name="paper-plane" size={24} color={cores.primary} />
-            </View>
-            <View style={styles.menuItemContent}>
-              <Text style={[styles.menuItemTitle, { color: cores.text }]}>
-                Testar Notificações
-              </Text>
-              <Text
-                style={[
-                  styles.menuItemDescription,
-                  { color: cores.textSecondary },
-                ]}
-              >
-                Enviar uma notificação de teste em 10 segundos
-              </Text>
-            </View>
-            <FontAwesome
-              name="chevron-right"
-              size={16}
-              color={cores.textSecondary}
-            />
-          </TouchableOpacity>
+              {/* Opção para ativar/desativar aviso no dia do vencimento */}
+              <View style={[styles.menuItem, { backgroundColor: cores.card }]}>
+                <View
+                  style={[
+                    styles.menuItemIcon,
+                    { backgroundColor: cores.primaryLight },
+                  ]}
+                >
+                  <FontAwesome
+                    name="exclamation"
+                    size={24}
+                    color={cores.primary}
+                  />
+                </View>
+                <View style={styles.menuItemContent}>
+                  <Text style={[styles.menuItemTitle, { color: cores.text }]}>
+                    Aviso no Dia do Vencimento
+                  </Text>
+                  <Text
+                    style={[
+                      styles.menuItemDescription,
+                      { color: cores.textSecondary },
+                    ]}
+                  >
+                    Receber alerta no dia do vencimento
+                  </Text>
+                </View>
+                <Switch
+                  trackColor={{
+                    false: cores.border,
+                    true: cores.primary + "80",
+                  }}
+                  thumbColor={avisarNoDiaVencimento ? cores.primary : "#f4f3f4"}
+                  onValueChange={toggleAvisarNoDia}
+                  value={avisarNoDiaVencimento}
+                />
+              </View>
+            </>
+          )}
         </View>
 
         <Modal
