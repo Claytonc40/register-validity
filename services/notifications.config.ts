@@ -1,5 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as BackgroundFetch from "expo-background-fetch";
 import * as Notifications from "expo-notifications";
+import * as TaskManager from "expo-task-manager";
+
+// Nome da tarefa em segundo plano
+const BACKGROUND_FETCH_TASK = "background-produto-check";
 
 // Configuração para como as notificações devem ser manipuladas quando o app está em primeiro plano
 Notifications.setNotificationHandler({
@@ -33,6 +38,124 @@ export const configurarNotificacoes = async () => {
   const produtos = await carregarProdutos();
   if (produtos && produtos.length > 0) {
     await agendarNotificacoesDiarias(produtos);
+  }
+};
+
+// Define a tarefa em segundo plano
+TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
+  try {
+    console.log("[Background] Verificando produtos vencendo...");
+
+    // Verifica se as notificações estão ativas
+    const notificacoesAtivas = await AsyncStorage.getItem(
+      "@notificacoes_ativas"
+    );
+    if (notificacoesAtivas === "false") {
+      console.log("[Background] Notificações desativadas");
+      return BackgroundFetch.BackgroundFetchResult.NoData;
+    }
+
+    // Carrega produtos e verifica vencimentos
+    const produtos = await carregarProdutos();
+    if (produtos && produtos.length > 0) {
+      await agendarNotificacoesDiarias(produtos);
+      console.log("[Background] Notificações agendadas com sucesso");
+      return BackgroundFetch.BackgroundFetchResult.NewData;
+    }
+
+    return BackgroundFetch.BackgroundFetchResult.NoData;
+  } catch (error) {
+    console.error("[Background] Erro:", error);
+    return BackgroundFetch.BackgroundFetchResult.Failed;
+  }
+});
+
+// Registra uma tarefa em segundo plano para verificação periódica
+export const registrarTarefaSegundoPlano = async () => {
+  try {
+    // Verifica se as notificações estão ativas
+    const notificacoesAtivas = await AsyncStorage.getItem(
+      "@notificacoes_ativas"
+    );
+    if (notificacoesAtivas === "false") {
+      console.log(
+        "Notificações desativadas, não registrando tarefa em segundo plano"
+      );
+      return false;
+    }
+
+    // Verifica se a tarefa já está registrada
+    const isTaskRegistered = await TaskManager.isTaskRegisteredAsync(
+      BACKGROUND_FETCH_TASK
+    );
+    if (isTaskRegistered) {
+      console.log("Tarefa em segundo plano já está registrada");
+      return true;
+    }
+
+    // Define o manipulador da tarefa em segundo plano
+    TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
+      try {
+        // Verificar novamente se as notificações estão ativas
+        const notificacoesAtivas = await AsyncStorage.getItem(
+          "@notificacoes_ativas"
+        );
+        if (notificacoesAtivas === "false") {
+          console.log(
+            "Notificações desativadas, pulando verificação em segundo plano"
+          );
+          return BackgroundFetch.BackgroundFetchResult.NoData;
+        }
+
+        // Buscar e processar produtos
+        const produtos = await carregarProdutos();
+        await agendarNotificacoesDiarias(produtos);
+
+        console.log("Verificação em segundo plano executada com sucesso");
+        return BackgroundFetch.BackgroundFetchResult.NewData;
+      } catch (error) {
+        console.error("Erro na tarefa em segundo plano:", error);
+        return BackgroundFetch.BackgroundFetchResult.Failed;
+      }
+    });
+
+    // Registra a tarefa para execução periódica
+    await BackgroundFetch.registerTaskAsync(BACKGROUND_FETCH_TASK, {
+      minimumInterval: 3600, // 1 hora em segundos (mínimo permitido pelo sistema)
+      stopOnTerminate: false, // Continua executando mesmo após o app ser fechado
+      startOnBoot: true, // Inicia após o dispositivo ser reiniciado
+    });
+
+    console.log("Tarefa em segundo plano registrada com sucesso");
+    return true;
+  } catch (error) {
+    console.error("Erro ao registrar tarefa em segundo plano:", error);
+    return false;
+  }
+};
+
+// Desregistra tarefa em segundo plano
+export const desregistrarTarefaSegundoPlano = async () => {
+  try {
+    // Verifica se a tarefa está registrada antes de tentar desregistrá-la
+    const isTaskRegistered = await TaskManager.isTaskRegisteredAsync(
+      BACKGROUND_FETCH_TASK
+    );
+
+    if (isTaskRegistered) {
+      await BackgroundFetch.unregisterTaskAsync(BACKGROUND_FETCH_TASK);
+      console.log("Tarefa em segundo plano desregistrada com sucesso");
+    } else {
+      console.log(
+        "Tarefa em segundo plano não está registrada, nada a desregistrar"
+      );
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Erro ao desregistrar tarefa em segundo plano:", error);
+    // Não considerar como erro crítico, apenas registrar no log
+    return true;
   }
 };
 

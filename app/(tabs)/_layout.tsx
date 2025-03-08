@@ -1,8 +1,8 @@
+import { useTema } from "@/app/contexts/TemaContext";
 import { FontAwesome } from "@expo/vector-icons";
 import { router, Tabs } from "expo-router/";
 import React from "react";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
-import { useTema } from "../contexts/TemaContext";
 
 // Definições de cores simples para o app
 const tintColorLight = "#2f95dc";
@@ -101,7 +101,7 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   cameraButton: {
     position: "absolute",
-    bottom: 30,
+    bottom: 10,
     alignSelf: "center",
     width: 60,
     height: 60,

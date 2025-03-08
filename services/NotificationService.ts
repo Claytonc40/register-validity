@@ -1,6 +1,6 @@
+import { configurarNotificacoes } from "@/services/notifications.config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
-import { configurarNotificacoes } from "./notifications.config";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({

@@ -11,7 +11,7 @@ import {
   getDaysRemaining,
   isExpired,
   isNearExpiry,
-} from "../constants/Products";
+} from "@/constants/Products";
 
 interface ProductListProps {
   products: Product[];

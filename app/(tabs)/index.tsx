@@ -1,3 +1,5 @@
+import { useProdutos } from "@/app/contexts/ProdutosContext";
+import { useTema } from "@/app/contexts/TemaContext";
 import { FontAwesome } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import React, { useEffect, useRef, useState } from "react";
@@ -12,8 +14,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useProdutos } from "../contexts/ProdutosContext";
-import { useTema } from "../contexts/TemaContext";
 
 // Definição dos estilos movida para o início
 const createStyles = (cores: any) =>
@@ -35,8 +35,13 @@ const createStyles = (cores: any) =>
     headerTitle: {
       flex: 1,
     },
-    menuButton: {
+    headerActions: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    headerButton: {
       padding: 8,
+      marginLeft: 15,
     },
     menuModal: {
       flex: 1,
@@ -170,22 +175,6 @@ const createStyles = (cores: any) =>
     },
     deleteButton: {
       padding: 10,
-    },
-    fabButton: {
-      position: "absolute",
-      right: 20,
-      bottom: 20,
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: cores.primary,
-      justifyContent: "center",
-      alignItems: "center",
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.25,
-      shadowRadius: 3.84,
-      elevation: 5,
     },
     modalContainer: {
       flex: 1,
@@ -400,12 +389,20 @@ export default function HomeScreen() {
         <View style={styles.headerTitle}>
           <Text style={styles.title}>Produtos Cadastrados</Text>
         </View>
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => setShowMenuModal(true)}
-        >
-          <FontAwesome name="ellipsis-v" size={20} color={cores.text} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => setShowModal(true)}
+          >
+            <FontAwesome name="plus" size={20} color={cores.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => setShowMenuModal(true)}
+          >
+            <FontAwesome name="ellipsis-v" size={20} color={cores.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -605,13 +602,6 @@ export default function HomeScreen() {
           </Animated.View>
         </Animated.View>
       </Modal>
-
-      <TouchableOpacity
-        style={styles.fabButton}
-        onPress={() => setShowModal(true)}
-      >
-        <FontAwesome name="plus" size={16} color="#fff" />
-      </TouchableOpacity>
 
       <Modal
         visible={showModal}

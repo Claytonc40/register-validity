@@ -1,8 +1,13 @@
+import { useTema } from "@/app/contexts/TemaContext";
 import { useNotifications } from "@/hooks/useNotifications";
+import {
+  desregistrarTarefaSegundoPlano,
+  registrarTarefaSegundoPlano,
+} from "@/services/notifications.config";
 import { FontAwesome } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { router } from "expo-router/";
+import { useRouter } from "expo-router/";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -15,14 +20,15 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useTema } from "../../contexts/TemaContext";
 
 const ConfiguracoesScreen = () => {
   const { tema, mudarTema, cores } = useTema();
   const { scheduleProductNotification } = useNotifications();
+  const router = useRouter();
   const [notificacoesAtivas, setNotificacoesAtivas] = useState(true);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [avisarNoDiaVencimento, setAvisarNoDiaVencimento] = useState(true);
+  const [verificacaoSegundoPlano, setVerificacaoSegundoPlano] = useState(true);
   const [horarioNotificacao, setHorarioNotificacao] = useState(
     new Date().setHours(7, 0, 0, 0)
   );
@@ -48,6 +54,11 @@ const ConfiguracoesScreen = () => {
 
         const avisarNoDia = await AsyncStorage.getItem("@avisar_no_dia");
         setAvisarNoDiaVencimento(avisarNoDia !== "false");
+
+        const verificacaoSegundoPlanoSalva = await AsyncStorage.getItem(
+          "@verificacao_segundo_plano"
+        );
+        setVerificacaoSegundoPlano(verificacaoSegundoPlanoSalva !== "false");
       } catch (error) {
         console.error("Erro ao carregar configurações:", error);
       }
@@ -90,6 +101,52 @@ const ConfiguracoesScreen = () => {
     } catch (error) {
       console.error("Erro ao salvar configuração de aviso no dia:", error);
       Alert.alert("Erro", "Não foi possível salvar sua preferência.");
+    }
+  };
+
+  // Toggle verificação em segundo plano
+  const toggleVerificacaoSegundoPlano = async (value: boolean) => {
+    setVerificacaoSegundoPlano(value);
+    await AsyncStorage.setItem("@verificacao_segundo_plano", value.toString());
+
+    try {
+      if (value) {
+        // Registrar tarefa em segundo plano
+        const sucesso = await registrarTarefaSegundoPlano();
+        if (sucesso) {
+          Alert.alert(
+            "Verificação em Segundo Plano Ativada",
+            "O aplicativo verificará periodicamente seus produtos mesmo quando estiver fechado."
+          );
+        } else {
+          // Se falhou ao registrar, reverte a configuração
+          setVerificacaoSegundoPlano(false);
+          await AsyncStorage.setItem("@verificacao_segundo_plano", "false");
+          Alert.alert(
+            "Erro ao Ativar",
+            "Não foi possível ativar a verificação em segundo plano. Tente novamente mais tarde."
+          );
+        }
+      } else {
+        // Desregistrar tarefa em segundo plano
+        await desregistrarTarefaSegundoPlano();
+        Alert.alert(
+          "Verificação em Segundo Plano Desativada",
+          "O aplicativo não verificará seus produtos quando estiver fechado."
+        );
+      }
+    } catch (error) {
+      console.error("Erro ao configurar tarefa em segundo plano:", error);
+      // Reverte a configuração em caso de erro
+      setVerificacaoSegundoPlano(!value);
+      await AsyncStorage.setItem(
+        "@verificacao_segundo_plano",
+        (!value).toString()
+      );
+      Alert.alert(
+        "Erro",
+        "Ocorreu um erro ao configurar a verificação em segundo plano."
+      );
     }
   };
 
@@ -318,6 +375,42 @@ const ConfiguracoesScreen = () => {
                   thumbColor={avisarNoDiaVencimento ? cores.primary : "#f4f3f4"}
                   onValueChange={toggleAvisarNoDia}
                   value={avisarNoDiaVencimento}
+                />
+              </View>
+
+              {/* Verificação em segundo plano */}
+              <View style={[styles.menuItem, { backgroundColor: cores.card }]}>
+                <View
+                  style={[
+                    styles.menuItemIcon,
+                    { backgroundColor: cores.primaryLight },
+                  ]}
+                >
+                  <FontAwesome name="refresh" size={24} color={cores.primary} />
+                </View>
+                <View style={styles.menuItemContent}>
+                  <Text style={[styles.menuItemTitle, { color: cores.text }]}>
+                    Verificação em Segundo Plano
+                  </Text>
+                  <Text
+                    style={[
+                      styles.menuItemDescription,
+                      { color: cores.textSecondary },
+                    ]}
+                  >
+                    Verificar produtos mesmo com o app fechado
+                  </Text>
+                </View>
+                <Switch
+                  trackColor={{
+                    false: cores.border,
+                    true: cores.primary + "80",
+                  }}
+                  thumbColor={
+                    verificacaoSegundoPlano ? cores.primary : "#f4f3f4"
+                  }
+                  onValueChange={toggleVerificacaoSegundoPlano}
+                  value={verificacaoSegundoPlano}
                 />
               </View>
             </>

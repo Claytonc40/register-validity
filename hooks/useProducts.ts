@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
-import { Product, initialProducts } from "../constants/Products";
+import { Product, initialProducts } from "@/constants/Products";
 
 // Chave para armazenamento no AsyncStorage
 const PRODUCTS_STORAGE_KEY = "@register_validity:products";
