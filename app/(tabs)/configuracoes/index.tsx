@@ -1,122 +1,172 @@
 import { useNotifications } from "@/hooks/useNotifications";
-import {
-  agendarNotificacao,
-  configurarNotificacoes,
-} from "@/services/notifications.config";
 import { FontAwesome } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { router } from "expo-router/";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
+  Modal,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { useProdutos } from "../../contexts/ProdutosContext";
+import { testarNotificacao } from "../../../services/notifications.config";
 import { useTema } from "../../contexts/TemaContext";
 
 const ConfiguracoesScreen = () => {
   const { tema, mudarTema, cores } = useTema();
   const { scheduleProductNotification } = useNotifications();
-  const { produtos } = useProdutos();
   const [notificacoesAtivas, setNotificacoesAtivas] = useState(true);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [avisarNoDiaVencimento, setAvisarNoDiaVencimento] = useState(true);
+  const [horarioNotificacao, setHorarioNotificacao] = useState(
+    new Date().setHours(7, 0, 0, 0)
+  );
+  const [diasAntecedencia, setDiasAntecedencia] = useState("1");
+  const [showDiasModal, setShowDiasModal] = useState(false);
 
-  // Carregar estado das notificações
+  // Carregar configurações
   useEffect(() => {
-    const carregarEstadoNotificacoes = async () => {
+    const carregarConfiguracoes = async () => {
       try {
         const estado = await AsyncStorage.getItem("@notificacoes_ativas");
-        if (estado !== null) {
-          setNotificacoesAtivas(estado === "true");
+        setNotificacoesAtivas(estado !== "false");
+
+        const horarioSalvo = await AsyncStorage.getItem("@horario_notificacao");
+        if (horarioSalvo) {
+          setHorarioNotificacao(Number(horarioSalvo));
         }
+
+        const diasSalvos = await AsyncStorage.getItem("@dias_antecedencia");
+        if (diasSalvos) {
+          setDiasAntecedencia(diasSalvos);
+        }
+
+        const avisarNoDia = await AsyncStorage.getItem("@avisar_no_dia");
+        setAvisarNoDiaVencimento(avisarNoDia !== "false");
       } catch (error) {
-        console.error("Erro ao carregar estado das notificações:", error);
+        console.error("Erro ao carregar configurações:", error);
       }
     };
-
-    carregarEstadoNotificacoes();
+    carregarConfiguracoes();
   }, []);
 
-  // Salvar estado das notificações quando mudar
-  const toggleNotificacoes = async (valor: boolean) => {
+  // Salvar estado das notificações
+  const toggleNotificacoes = async (value: boolean) => {
     try {
-      if (valor) {
-        // Solicita permissão quando ativar notificações
-        await configurarNotificacoes();
-      }
-
-      setNotificacoesAtivas(valor);
-      await AsyncStorage.setItem("@notificacoes_ativas", valor.toString());
-
-      if (valor) {
+      await AsyncStorage.setItem("@notificacoes_ativas", value.toString());
+      setNotificacoesAtivas(value);
+      if (value) {
         Alert.alert(
-          "Notificações ativadas",
-          "Você receberá notificações sobre produtos próximos do vencimento."
+          "Notificações Ativadas",
+          "Você receberá alertas sobre produtos próximos do vencimento."
         );
       } else {
         Alert.alert(
-          "Notificações desativadas",
-          "Você não receberá mais notificações sobre produtos."
+          "Notificações Desativadas",
+          "Você não receberá mais alertas sobre produtos."
         );
       }
     } catch (error) {
       console.error("Erro ao salvar estado das notificações:", error);
+      Alert.alert("Erro", "Não foi possível salvar sua preferência.");
+    }
+  };
+
+  const toggleAvisarNoDia = async (value: boolean) => {
+    try {
+      await AsyncStorage.setItem("@avisar_no_dia", value.toString());
+      setAvisarNoDiaVencimento(value);
       Alert.alert(
-        "Erro",
-        "Não foi possível ativar as notificações. Verifique as permissões do aplicativo."
+        value ? "Aviso Ativado" : "Aviso Desativado",
+        value
+          ? "Você receberá alertas no dia do vencimento dos produtos."
+          : "Você não receberá mais alertas no dia do vencimento."
       );
+    } catch (error) {
+      console.error("Erro ao salvar configuração de aviso no dia:", error);
+      Alert.alert("Erro", "Não foi possível salvar sua preferência.");
+    }
+  };
+
+  // Função para formatar hora
+  const formatarHora = (date: Date | number) => {
+    const hora = new Date(date);
+    return hora.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  };
+
+  // Função para mudar horário da notificação
+  const handleTimeChange = async (event: any, selectedDate?: Date) => {
+    setShowTimePicker(false);
+    if (selectedDate) {
+      try {
+        const timestamp = selectedDate.getTime();
+        await AsyncStorage.setItem(
+          "@horario_notificacao",
+          timestamp.toString()
+        );
+        setHorarioNotificacao(timestamp);
+        Alert.alert(
+          "Horário Atualizado",
+          `As notificações serão enviadas às ${formatarHora(timestamp)}`
+        );
+      } catch (error) {
+        console.error("Erro ao salvar horário:", error);
+        Alert.alert("Erro", "Não foi possível salvar o horário.");
+      }
     }
   };
 
   const handleTesteNotificacao = async () => {
-    const dataNotificacao = new Date(Date.now() + 10 * 1000); // 10 segundos
-
-    try {
-      await scheduleProductNotification("Produto Teste", dataNotificacao);
-      alert("Notificação agendada! Você receberá em 10 segundos.");
-    } catch (error) {
-      alert("Erro ao agendar notificação: " + (error as Error).message);
-    }
-  };
-
-  const handleTesteNotificacaoProdutos = async () => {
-    if (produtos.length === 0) {
+    if (!notificacoesAtivas) {
       Alert.alert(
-        "Sem produtos",
-        "Adicione produtos para testar as notificações."
+        "Notificações Desativadas",
+        "Ative as notificações para testar."
       );
       return;
     }
 
     try {
-      // Notificação para produtos vencendo hoje
-      const mensagem =
-        produtos.length === 1
-          ? `O produto ${produtos[0].nome} está próximo do vencimento!`
-          : `Você tem ${produtos.length} produtos próximos do vencimento!`;
-
-      // Agenda para daqui a 5 segundos para teste
-      const testeData = new Date(Date.now() + 5000);
-
-      await agendarNotificacao(
-        "Atenção: Produtos Vencendo",
-        mensagem,
-        testeData
-      );
+      // Usa a função dedicada para teste de notificações
+      await testarNotificacao();
 
       Alert.alert(
-        "Notificação agendada!",
-        "Você receberá uma notificação em 5 segundos com os produtos."
+        "Notificação Enviada",
+        "Uma notificação de teste foi enviada e deve aparecer imediatamente."
       );
     } catch (error) {
+      console.error("Erro ao testar notificação:", error);
+      Alert.alert("Erro", "Não foi possível enviar a notificação de teste.");
+    }
+  };
+
+  const salvarDiasAntecedencia = async (dias: string) => {
+    try {
+      const diasNum = parseInt(dias);
+      if (isNaN(diasNum) || diasNum < 1 || diasNum > 30) {
+        Alert.alert("Erro", "Por favor, insira um número entre 1 e 30");
+        return;
+      }
+
+      await AsyncStorage.setItem("@dias_antecedencia", dias);
+      setDiasAntecedencia(dias);
+      setShowDiasModal(false);
       Alert.alert(
-        "Erro",
-        "Não foi possível agendar a notificação: " + (error as Error).message
+        "Configuração Salva",
+        `Você será notificado ${dias} dia(s) antes do vencimento dos produtos.`
       );
+    } catch (error) {
+      console.error("Erro ao salvar dias de antecedência:", error);
+      Alert.alert("Erro", "Não foi possível salvar sua preferência.");
     }
   };
 
@@ -177,11 +227,104 @@ const ConfiguracoesScreen = () => {
               </Text>
             </View>
             <Switch
-              trackColor={{ false: "#767577", true: cores.primaryLight }}
+              trackColor={{ false: cores.border, true: cores.primary + "80" }}
               thumbColor={notificacoesAtivas ? cores.primary : "#f4f3f4"}
-              ios_backgroundColor="#3e3e3e"
               onValueChange={toggleNotificacoes}
               value={notificacoesAtivas}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.menuItem, { backgroundColor: cores.card }]}
+            onPress={() => setShowTimePicker(true)}
+          >
+            <View
+              style={[
+                styles.menuItemIcon,
+                { backgroundColor: cores.primaryLight },
+              ]}
+            >
+              <FontAwesome name="clock-o" size={24} color={cores.primary} />
+            </View>
+            <View style={styles.menuItemContent}>
+              <Text style={[styles.menuItemTitle, { color: cores.text }]}>
+                Horário das Notificações
+              </Text>
+              <Text
+                style={[
+                  styles.menuItemDescription,
+                  { color: cores.textSecondary },
+                ]}
+              >
+                Notificar diariamente às {formatarHora(horarioNotificacao)}
+              </Text>
+            </View>
+            <FontAwesome
+              name="chevron-right"
+              size={16}
+              color={cores.textSecondary}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.menuItem, { backgroundColor: cores.card }]}
+            onPress={() => setShowDiasModal(true)}
+          >
+            <View
+              style={[
+                styles.menuItemIcon,
+                { backgroundColor: cores.primaryLight },
+              ]}
+            >
+              <FontAwesome name="calendar" size={24} color={cores.primary} />
+            </View>
+            <View style={styles.menuItemContent}>
+              <Text style={[styles.menuItemTitle, { color: cores.text }]}>
+                Antecedência do Aviso
+              </Text>
+              <Text
+                style={[
+                  styles.menuItemDescription,
+                  { color: cores.textSecondary },
+                ]}
+              >
+                Avisar {diasAntecedencia} dia(s) antes do vencimento
+              </Text>
+            </View>
+            <FontAwesome
+              name="chevron-right"
+              size={16}
+              color={cores.textSecondary}
+            />
+          </TouchableOpacity>
+
+          <View style={[styles.menuItem, { backgroundColor: cores.card }]}>
+            <View
+              style={[
+                styles.menuItemIcon,
+                { backgroundColor: cores.primaryLight },
+              ]}
+            >
+              <FontAwesome name="exclamation" size={24} color={cores.primary} />
+            </View>
+            <View style={styles.menuItemContent}>
+              <Text style={[styles.menuItemTitle, { color: cores.text }]}>
+                Aviso no Dia do Vencimento
+              </Text>
+              <Text
+                style={[
+                  styles.menuItemDescription,
+                  { color: cores.textSecondary },
+                ]}
+              >
+                Receber alerta no dia do vencimento
+              </Text>
+            </View>
+            <Switch
+              trackColor={{ false: cores.border, true: cores.primary + "80" }}
+              thumbColor={avisarNoDiaVencimento ? cores.primary : "#f4f3f4"}
+              onValueChange={toggleAvisarNoDia}
+              value={avisarNoDiaVencimento}
             />
           </View>
 
@@ -195,11 +338,11 @@ const ConfiguracoesScreen = () => {
                 { backgroundColor: cores.primaryLight },
               ]}
             >
-              <FontAwesome name="bell-o" size={24} color={cores.primary} />
+              <FontAwesome name="paper-plane" size={24} color={cores.primary} />
             </View>
             <View style={styles.menuItemContent}>
               <Text style={[styles.menuItemTitle, { color: cores.text }]}>
-                Testar Notificação Simples
+                Testar Notificações
               </Text>
               <Text
                 style={[
@@ -216,43 +359,83 @@ const ConfiguracoesScreen = () => {
               color={cores.textSecondary}
             />
           </TouchableOpacity>
+        </View>
 
-          <TouchableOpacity
-            style={[styles.menuItem, { backgroundColor: cores.card }]}
-            onPress={handleTesteNotificacaoProdutos}
+        <Modal
+          visible={showDiasModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowDiasModal(false)}
+        >
+          <View
+            style={[
+              styles.modalContainer,
+              { backgroundColor: "rgba(0, 0, 0, 0.5)" },
+            ]}
           >
             <View
-              style={[
-                styles.menuItemIcon,
-                { backgroundColor: cores.primaryLight },
-              ]}
+              style={[styles.modalContent, { backgroundColor: cores.card }]}
             >
-              <FontAwesome
-                name="shopping-basket"
-                size={24}
-                color={cores.primary}
-              />
-            </View>
-            <View style={styles.menuItemContent}>
-              <Text style={[styles.menuItemTitle, { color: cores.text }]}>
-                Testar Notificação de Produtos
+              <Text style={[styles.modalTitle, { color: cores.text }]}>
+                Dias de Antecedência
               </Text>
               <Text
                 style={[
-                  styles.menuItemDescription,
+                  styles.modalDescription,
                   { color: cores.textSecondary },
                 ]}
               >
-                Enviar notificação com produtos em 5 segundos
+                Quantos dias antes do vencimento você quer ser notificado?
               </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: cores.background,
+                    color: cores.text,
+                    borderColor: cores.border,
+                  },
+                ]}
+                keyboardType="number-pad"
+                value={diasAntecedencia}
+                onChangeText={setDiasAntecedencia}
+                placeholder="Digite o número de dias"
+                placeholderTextColor={cores.textSecondary}
+                maxLength={2}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.modalButton,
+                    { backgroundColor: cores.danger },
+                  ]}
+                  onPress={() => setShowDiasModal(false)}
+                >
+                  <Text style={styles.modalButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modalButton,
+                    { backgroundColor: cores.success },
+                  ]}
+                  onPress={() => salvarDiasAntecedencia(diasAntecedencia)}
+                >
+                  <Text style={styles.modalButtonText}>Salvar</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <FontAwesome
-              name="chevron-right"
-              size={16}
-              color={cores.textSecondary}
-            />
-          </TouchableOpacity>
-        </View>
+          </View>
+        </Modal>
+
+        {showTimePicker && (
+          <DateTimePicker
+            value={new Date(horarioNotificacao)}
+            mode="time"
+            is24Hour={true}
+            display="default"
+            onChange={handleTimeChange}
+          />
+        )}
 
         <View
           style={[
@@ -546,6 +729,52 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    width: "80%",
+    padding: 20,
+    borderRadius: 12,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  modalDescription: {
+    fontSize: 16,
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  modalButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    marginHorizontal: 5,
+    alignItems: "center",
+  },
+  modalButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });
 

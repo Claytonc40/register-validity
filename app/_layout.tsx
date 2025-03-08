@@ -4,14 +4,15 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { Stack } from "expo-router/stack";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import "react-native-reanimated";
 import { PadroesProvider } from "./contexts/PadroesContext";
 import { ProdutosProvider } from "./contexts/ProdutosContext";
 import { TemaProvider, useTema } from "./contexts/TemaContext";
+import { AnimatedSplash } from "@/components/AnimatedSplash";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -19,7 +20,12 @@ SplashScreen.preventAutoHideAsync();
 function RootLayoutNav() {
   const { temaAtual } = useTema();
   const isDark = temaAtual === "dark";
-
+  const [isSplashVisible, setIsSplashVisible] = useState(true);
+  if (isSplashVisible) {
+    return (
+      <AnimatedSplash onAnimationComplete={() => setIsSplashVisible(false)} />
+    );
+  }
   return (
     <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
       <StatusBar style={isDark ? "light" : "dark"} />

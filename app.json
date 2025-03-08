@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Register Validity",
+    "name": "ExpiraAí",
     "slug": "register-validity",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "registervalidity",
+    "scheme": "expiraai",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -13,10 +13,16 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/icon.png",
+        "favicon": "./assets/images/favicon.png",
+        "icon": "./assets/images/favicon.png",
+        "splash": {
+          "image": "./assets/images/icon.png",
+          "imageWidth": "100%",
+          "resizeMode": "contain"
+        }
       },
-      "package": "com.clayton_c40.registervalidity"
+      "package": "com.editecsistemas.expiraai"
     },
     "web": {
       "bundler": "metro",
@@ -28,16 +34,16 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-ico.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "image": "./assets/images/icon.png",
+          "imageWidth": "100%",
+          "resizeMode": "contain"
         }
       ],
       [
         "expo-notifications",
         {
           "icon": "./assets/images/notification-icon.png",
+          "favicon": "./assets/images/favicon.png",
           "color": "#ffffff",
           "sounds": ["./assets/sounds/notification.wav"]
         }

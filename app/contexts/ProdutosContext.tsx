@@ -28,11 +28,22 @@ const ProdutosContext = createContext<ProdutosContextData>(
 
 // Função para comparar apenas as datas (ignorando horas)
 const mesmaData = (data1: Date, data2: Date) => {
-  return (
-    data1.getDate() === data2.getDate() &&
-    data1.getMonth() === data2.getMonth() &&
-    data1.getFullYear() === data2.getFullYear()
-  );
+  try {
+    // Verifica se as datas são válidas
+    if (!data1 || !data2 || isNaN(data1.getTime()) || isNaN(data2.getTime())) {
+      console.warn("Comparação de data inválida no ProdutosContext");
+      return false;
+    }
+
+    return (
+      data1.getDate() === data2.getDate() &&
+      data1.getMonth() === data2.getMonth() &&
+      data1.getFullYear() === data2.getFullYear()
+    );
+  } catch (error) {
+    console.error("Erro ao comparar datas:", error);
+    return false;
+  }
 };
 
 export function ProdutosProvider({ children }: { children: ReactNode }) {
@@ -92,44 +103,57 @@ export function ProdutosProvider({ children }: { children: ReactNode }) {
   // Efeito para agendar notificações sempre que a lista de produtos mudar
   useEffect(() => {
     if (notificacoesAtivas && produtos.length > 0) {
-      // Filtra produtos que vencem hoje ou amanhã
-      const hoje = new Date();
-      const amanha = new Date(hoje);
-      amanha.setDate(amanha.getDate() + 1);
+      console.log("Verificando produtos para notificações...");
+      console.log("Total de produtos:", produtos.length);
 
-      const produtosProximosVencimento = produtos.filter((produto) => {
-        const dataValidade = new Date(produto.validade);
-        return mesmaData(dataValidade, hoje) || mesmaData(dataValidade, amanha);
-      });
-
-      if (produtosProximosVencimento.length > 0) {
-        console.log(
-          "Agendando notificações para",
-          produtosProximosVencimento.length,
-          "produtos próximos do vencimento"
-        );
-        agendarNotificacoesDiarias(produtosProximosVencimento);
-      } else {
-        console.log("Nenhum produto próximo do vencimento para notificar");
+      // Vamos enviar todos os produtos para o serviço de notificações
+      // e deixar que ele filtre de acordo com as configurações de antecedência e aviso no dia
+      agendarNotificacoesDiarias(produtos);
+    } else {
+      if (!notificacoesAtivas) {
+        console.log("Notificações desativadas pelo usuário");
+      } else if (produtos.length === 0) {
+        console.log("Nenhum produto cadastrado para verificar");
       }
     }
   }, [produtos, notificacoesAtivas]);
 
   // Verificar periodicamente se houve mudança na configuração de notificações
   useEffect(() => {
-    const intervalo = setInterval(async () => {
+    const verificarConfiguracoes = async () => {
       try {
+        // Verifica estado das notificações
         const estado = await AsyncStorage.getItem("@notificacoes_ativas");
+        let mudanca = false;
+
         if (estado !== null && (estado === "true") !== notificacoesAtivas) {
           setNotificacoesAtivas(estado === "true");
+          mudanca = true;
+        }
+
+        // Se houver mudança e as notificações estiverem ativas, reagenda
+        if (mudanca && estado === "true" && produtos.length > 0) {
+          console.log(
+            "Configurações de notificações alteradas, reagendando..."
+          );
+          agendarNotificacoesDiarias(produtos);
         }
       } catch (error) {
-        console.error("Erro ao verificar estado das notificações:", error);
+        console.error(
+          "Erro ao verificar configurações de notificações:",
+          error
+        );
       }
-    }, 5000); // Verificar a cada 5 segundos
+    };
+
+    // Executa verificação inicial
+    verificarConfiguracoes();
+
+    // Configura intervalo para verificação periódica
+    const intervalo = setInterval(verificarConfiguracoes, 30000); // A cada 30 segundos
 
     return () => clearInterval(intervalo);
-  }, [notificacoesAtivas]);
+  }, [notificacoesAtivas, produtos]);
 
   return (
     <ProdutosContext.Provider

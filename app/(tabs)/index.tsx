@@ -15,22 +15,9 @@ import {
 import { useProdutos } from "../contexts/ProdutosContext";
 import { useTema } from "../contexts/TemaContext";
 
-export default function HomeScreen() {
-  const { produtos, carregarProdutos, removerProduto, adicionarProduto } =
-    useProdutos();
-  const { cores } = useTema();
-  const [showModal, setShowModal] = useState(false);
-  const [showMenuModal, setShowMenuModal] = useState(false);
-  const [nomeProduto, setNomeProduto] = useState("");
-  const [dataValidade, setDataValidade] = useState("");
-  const [date, setDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("todos");
-  const slideAnim = useRef(new Animated.Value(400)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  const styles = StyleSheet.create({
+// Definição dos estilos movida para o início
+const createStyles = (cores: any) =>
+  StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: cores.background,
@@ -279,6 +266,24 @@ export default function HomeScreen() {
     },
   });
 
+export default function HomeScreen() {
+  const { produtos, carregarProdutos, removerProduto, adicionarProduto } =
+    useProdutos();
+  const { cores } = useTema();
+  const [showModal, setShowModal] = useState(false);
+  const [showMenuModal, setShowMenuModal] = useState(false);
+  const [nomeProduto, setNomeProduto] = useState("");
+  const [dataValidade, setDataValidade] = useState("");
+  const [date, setDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("todos");
+  const slideAnim = useRef(new Animated.Value(400)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Criar os estilos usando as cores do tema
+  const styles = createStyles(cores);
+
   useEffect(() => {
     carregarProdutos();
   }, []);
@@ -402,6 +407,7 @@ export default function HomeScreen() {
           <FontAwesome name="ellipsis-v" size={20} color={cores.text} />
         </TouchableOpacity>
       </View>
+
       <ScrollView
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}

@@ -30,8 +30,8 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:scheme="registervalidity"/>
-        <data android:scheme="com.clayton_c40.registervalidity"/>
+        <data android:scheme="expiraai"/>
+        <data android:scheme="com.editecsistemas.expiraai"/>
         <data android:scheme="exp+register-validity"/>
       </intent-filter>
     </activity>
