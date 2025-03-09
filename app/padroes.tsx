@@ -1,6 +1,6 @@
 import { FontAwesome } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Stack } from "expo-router";
+import { Stack } from "expo-router/";
 import React, { useEffect, useState } from "react";
 import {
   Alert,

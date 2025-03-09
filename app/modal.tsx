@@ -1,3 +1,5 @@
+import { extrairProduto } from "@/app/utils/produtoPatterns";
+import { extrairDataValidade } from "@/app/utils/validadePatterns";
 import { FontAwesome } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { Stack } from "expo-router/stack";
@@ -31,26 +33,14 @@ interface ProdutoAlerta {
   dataRegistro: string;
 }
 
-const converterMes = (mesTexto: string): string => {
-  const meses: { [key: string]: string } = {
-    JAN: "01",
-    FEV: "02",
-    MAR: "03",
-    ABR: "04",
-    MAI: "05",
-    JUN: "06",
-    JUL: "07",
-    AGO: "08",
-    SET: "09",
-    OUT: "10",
-    NOV: "11",
-    DEZ: "12",
-  };
-  return meses[mesTexto.toUpperCase()] || "01";
-};
-
 const extrairData = (texto: string, padroes: any[]): string | null => {
-  // Primeiro tenta usar os padrões salvos
+  // Primeiro tenta extrair usando o novo componente de padrões
+  const dataValidade = extrairDataValidade(texto);
+  if (dataValidade) {
+    return dataValidade;
+  }
+
+  // Se não encontrar, tenta usar os padrões salvos
   for (const padrao of padroes) {
     for (const padraoData of padrao.configuracao.padroesData) {
       const regex = new RegExp(
@@ -61,157 +51,6 @@ const extrairData = (texto: string, padroes: any[]): string | null => {
       if (match) {
         return match[0];
       }
-    }
-  }
-
-  // Se não encontrar com os padrões salvos, usa os padrões padrão
-  const padroesComRotulo = [
-    /VAL:?\s*(\d{2})\/([A-Za-z]{3})\/(\d{2})/i,
-    /VENC\.?:?\s*(\d{2})\/([A-Za-z]{3})\/(\d{2})/i,
-    /VAL\.?\/VENC\.?:?\s*(\d{2})\/([A-Za-z]{3})\/(\d{2})/i,
-    /DATA DE VENCIMENTO:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i,
-    /VAL\.?\/VENC\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i,
-    /VENC\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i,
-    /VAL\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i,
-    /VALIDADE:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/i,
-  ];
-
-  // Primeiro tenta encontrar datas com rótulos
-  for (const padrao of padroesComRotulo) {
-    const match = texto.match(padrao);
-    if (match && match.length === 4) {
-      // Se o segundo grupo é um mês em texto
-      if (isNaN(Number(match[2]))) {
-        const mes = converterMes(match[2]);
-        const ano = match[3].length === 2 ? "20" + match[3] : match[3];
-        return `${match[1]}/${mes}/${ano}`;
-      }
-      return `${match[1]}/${match[2]}/${match[3]}`;
-    }
-  }
-
-  // Se não encontrou com rótulos, procura por datas soltas
-  const padroesData = [
-    /(\d{2})[\/-]([A-Za-z]{3})[\/-](\d{2})/i, // dd/MMM/yy
-    /(\d{2})[\/-](\d{2})[\/-](\d{4})/, // dd/mm/yyyy
-  ];
-
-  const linhas = texto.split("\n");
-  for (const linha of linhas) {
-    for (const padrao of padroesData) {
-      const match = linha.match(padrao);
-      if (match && match.length === 4) {
-        if (
-          linha.toLowerCase().includes("val") ||
-          linha.toLowerCase().includes("venc") ||
-          linha.toLowerCase().includes("validade")
-        ) {
-          // Se o segundo grupo é um mês em texto
-          if (isNaN(Number(match[2]))) {
-            const mes = converterMes(match[2]);
-            const ano = match[3].length === 2 ? "20" + match[3] : match[3];
-            return `${match[1]}/${mes}/${ano}`;
-          }
-          return `${match[1]}/${match[2]}/${match[3]}`;
-        }
-      }
-    }
-  }
-
-  return null;
-};
-
-const extrairProduto = (texto: string, padroes: any[]): string | null => {
-  // Primeiro tenta usar os padrões salvos
-  for (const padrao of padroes) {
-    // Verifica se o texto contém alguma das palavras-chave do padrão
-    const temPalavraChave = padrao.configuracao.palavrasChave.some(
-      (palavra: string) => texto.toUpperCase().includes(palavra)
-    );
-
-    // Verifica se o texto não contém palavras ignoradas
-    const temPalavraIgnorada = padrao.configuracao.palavrasIgnoradas.some(
-      (palavra: string) => texto.toUpperCase().includes(palavra)
-    );
-
-    if (temPalavraChave && !temPalavraIgnorada) {
-      // Procura por exemplos salvos que correspondam ao padrão
-      const exemploCorrespondente = padrao.exemplos.find((exemplo: any) =>
-        texto.toUpperCase().includes(exemplo.textoNome.toUpperCase())
-      );
-
-      if (exemploCorrespondente) {
-        return exemploCorrespondente.textoNome;
-      }
-    }
-  }
-
-  // Se não encontrar com os padrões salvos, usa a lógica padrão
-  const palavrasChaveProduto = [
-    "TIRAS",
-    "MOLHO",
-    "COBERTURA",
-    "MAIONESE",
-    "MAYONESA",
-    "FEIJÃO",
-    "FEIJAO",
-    "PRETO",
-  ];
-
-  // Palavras a serem ignoradas
-  const palavrasIgnoradas = [
-    "LOTE",
-    "FAB",
-    "FABRICAÇÃO",
-    "VALIDADE",
-    "VENCIMENTO",
-    "VAL",
-    "VENC",
-    "PREPARADO",
-    "USAR",
-    "CONTÉM",
-    "CONSERVAR",
-    "DATA",
-    "WRIN",
-    "WSI",
-  ];
-
-  // Primeiro procura por "Feijão Preto" especificamente
-  for (const linha of texto.split("\n")) {
-    if (
-      linha.toLowerCase().includes("feijão preto") ||
-      linha.toLowerCase().includes("feijao preto")
-    ) {
-      return linha.trim();
-    }
-  }
-
-  // Procura por linhas que podem ser nomes de produtos
-  for (const linha of texto.split("\n")) {
-    const linhaUpperCase = linha.toUpperCase();
-
-    // Verifica se a linha contém alguma palavra-chave de produto
-    if (
-      palavrasChaveProduto.some((palavra) => linhaUpperCase.includes(palavra))
-    ) {
-      // Remove possíveis códigos ou números no início da linha
-      const produtoLimpo = linha.replace(/^[\d\-\/\\]+\s*/, "").trim();
-      if (
-        produtoLimpo &&
-        !palavrasIgnoradas.some((p) => linhaUpperCase.includes(p))
-      ) {
-        return produtoLimpo;
-      }
-    }
-
-    // Se a linha está em uma caixa (toda em maiúsculas e sem números)
-    if (
-      linha === linhaUpperCase &&
-      !linha.match(/\d/) &&
-      linha.length > 3 &&
-      !palavrasIgnoradas.some((p) => linhaUpperCase.includes(p))
-    ) {
-      return linha.trim();
     }
   }
 
@@ -230,7 +69,27 @@ const formatarSaida = (
   }
 
   if (vencimento) {
-    saida += `📅 Vencimento: ${vencimento}\n\n`;
+    saida += `📅 Validade: ${vencimento}\n\n`;
+  }
+
+  // Adicionar informações sobre peso se encontradas
+  const pesoMatch = textoCompleto.match(/(\d+[.,]\d+)\s*kg/i);
+  if (pesoMatch) {
+    saida += `⚖️ Peso: ${pesoMatch[1]} kg\n\n`;
+  }
+
+  // Adicionar informações sobre quantidade de unidades se encontradas
+  const qtUnidadeMatch = textoCompleto.match(/Qt\.\s*Unidade:?\s*(\d+)/i);
+  if (qtUnidadeMatch) {
+    saida += `📦 Quantidade: ${qtUnidadeMatch[1]} unidades\n\n`;
+  }
+
+  // Adicionar informações sobre data de produção se encontrada
+  const producaoMatch = textoCompleto.match(
+    /Data\s+de\s+Produção:?\s*(\d{2}\/\d{2}\/\d{4})/i
+  );
+  if (producaoMatch) {
+    saida += `🏭 Produção: ${producaoMatch[1]}\n\n`;
   }
 
   if (!produto && !vencimento) {
