@@ -1,4 +1,13 @@
 export const validadePatterns = [
+  // Padrões específicos para validade
+  /Data\s+de\s+Validade:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/gi,
+  /Validade:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/gi,
+  /Val\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/gi,
+  /Venc\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/gi,
+
+  // Padrões específicos para excluir datas de produção
+  /(?<!Produção[\s:]+)(?<!Fabricação[\s:]+)(\d{2})[\/-](\d{2})[\/-](\d{4})/gi,
+
   // Padrão específico para VAL./VENC.
   /VAL\.?\/VENC\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/gi,
   /VALNENC\.?:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/gi,
@@ -70,6 +79,47 @@ export const validadePatterns = [
   /LOTE\/FAB:?(\d{2})\/([A-Za-z]{4})(\d{1}[A-Za-z0-9]{1})\s*VAL:?(\d{2})\/([A-Za-z]{4})(\d{1}[A-Za-z0-9]{1})/gi,
   /FAB:?(\d{2})\/([A-Za-z]{4})(\d{1}[A-Za-z0-9]{1})\s*VAL:?(\d{2})\/([A-Za-z]{4})(\d{1}[A-Za-z0-9]{1})/gi,
   /(\d{2})\/([A-Za-z]{4})(\d{1}[A-Za-z0-9]{1})/gi,
+
+  // Padrões específicos para validade com variações de OCR
+  /Data\s+de\s+[Vv]a[il]?dade:?\s*(\d{2})[\/-](\d{2})[\/-](\d{4})/gi,
+
+  // Padrão específico para "Val: DD/MM/YY" (formato usado nos produtos McCain)
+  /[Vv]al:?\s*(\d{1,2})[\/-](\d{1,2})[\/-](\d{2})/gi,
+
+  // Padrões específicos para produtos Sadia com "VÁLIDO ATÉ"
+  /[Vv][aá]lido\s+at[eé]:?\s*(\d{1,2})[\.\/\-](\d{1,2})[\.\/\-](\d{2,4})/gi,
+
+  // Padrões específicos para "VENC: DD MM YY" (sem separadores)
+  /[Vv][Ee][Nn][Cc]:?\s*(\d{1,2})\s+(\d{1,2})\s+(\d{2})/gi,
+
+  // Padrões para datas com meses escritos por extenso em maiúsculas (DEZ, JUN)
+  /[Vv][Aa][Ll]:?\s*(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{2,4})/gi,
+  /[Ff][Aa][Bb]:?\s*(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{2,4})/gi,
+
+  // Padrão para capturar datas em formato VAL sem espaço (VAL16/07/2025)
+  /VAL(\d{1,2})[\.\/\-](\d{1,2})[\.\/\-](\d{2,4})/gi,
+
+  // Padrões para capturar datas de validade específicas para temperaturas
+  /Validade\s+em\s+temperatura\s+ambiente:?\s*(\d{1,2})[\.\/\-](\d{1,2})[\.\/\-](\d{2,4})/gi,
+  /Validade\s+resfriado\s+\([^)]+\):?\s*(\d{1,2})[\.\/\-](\d{1,2})[\.\/\-](\d{2,4})/gi,
+
+  // Padrões para o formato "Data de Validade" sem dois pontos (encontrado na etiqueta de Bebida Láctea)
+  /Data\s+de\s+Validade\s*(\d{1,2})[\.\/\-](\d{1,2})[\.\/\-](\d{2,4})/gi,
+
+  // Padrões para capturar datas de produtos Mars e M&Ms
+  /[Vv]:(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{2})/gi,
+  /[Vv]:(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{2})\s+\d{2}:\d{2}/gi,
+  /[Uu]:(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{2})/gi,
+
+  // Padrão para DATA DE VENCIMENTO formatado (com as palavras separadas)
+  /DATA\s+DE\s+VENCIMENTO:?\s*(\d{1,2})[\.\/\-](\d{1,2})[\.\/\-](\d{2,4})/gi,
+
+  // Padrão para capturar datas em etiquetas invertidas (texto de cabeça para baixo)
+  /[Vv]a[l1][i1]dade:?\s*(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{2,4})/gi,
+  /[Dd]ata\s+de\s+[Vv]a[l1][i1]dade\s*(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{2,4})/gi,
+
+  // Padrão para formato com pontos em vez de barras (xx.xx.xxxx)
+  /DATA\s+DE\s+VALIDADE\s*(\d{1,2})\.(\d{1,2})\.(\d{2,4})/gi,
 ];
 
 // Mapeamento de meses em texto para números
@@ -173,23 +223,24 @@ export const extrairDataValidade = (texto: string): string | null => {
   if (!texto) return null;
 
   const datas: string[] = [];
+  const datasProducao: Set<string> = new Set();
+
+  // Primeiro identifica datas de produção para excluí-las
+  const padraoProducao =
+    /(?:Produção|Fabricação|Prod|Fab)[\s:]+(\d{2})[\/-](\d{2})[\/-](\d{4})/gi;
+  let match;
+  while ((match = padraoProducao.exec(texto)) !== null) {
+    const dataProducao = `${match[1]}/${match[2]}/${match[3]}`;
+    datasProducao.add(dataProducao);
+  }
 
   // Procura por todas as datas no texto
   for (const pattern of validadePatterns) {
     try {
       const matches = texto.matchAll(pattern);
       for (const match of Array.from(matches)) {
-        let data: string | null;
-
-        // Para padrões que capturam data de fabricação e validade
-        if (match.length > 4) {
-          data = normalizarData(match[4], match[5], match[6]);
-        } else {
-          // Para padrões simples de data
-          data = normalizarData(match[1], match[2], match[3]);
-        }
-
-        if (data) {
+        const data = normalizarData(match[1], match[2], match[3]);
+        if (data && !datasProducao.has(data)) {
           datas.push(data);
         }
       }
@@ -205,21 +256,16 @@ export const extrairDataValidade = (texto: string): string | null => {
   // Se encontrou mais de uma data, retorna a mais distante (futura)
   if (datas.length > 1) {
     return datas.reduce((dataMaxima, dataAtual) => {
-      try {
-        const [diaMax, mesMax, anoMax] = dataMaxima.split("/").map(Number);
-        const [diaAtual, mesAtual, anoAtual] = dataAtual.split("/").map(Number);
+      const [diaMax, mesMax, anoMax] = dataMaxima.split("/").map(Number);
+      const [diaAtual, mesAtual, anoAtual] = dataAtual.split("/").map(Number);
 
-        const dataMax = new Date(anoMax, mesMax - 1, diaMax);
-        const dataAt = new Date(anoAtual, mesAtual - 1, diaAtual);
+      const dataMax = new Date(anoMax, mesMax - 1, diaMax);
+      const dataAt = new Date(anoAtual, mesAtual - 1, diaAtual);
 
-        return dataAt > dataMax ? dataAtual : dataMaxima;
-      } catch (error) {
-        return dataMaxima;
-      }
+      return dataAt > dataMax ? dataAtual : dataMaxima;
     });
   }
 
-  // Se encontrou apenas uma data, retorna ela
   return datas[0];
 };
 
