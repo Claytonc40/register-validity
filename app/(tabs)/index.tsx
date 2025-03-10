@@ -14,9 +14,11 @@ import React, {
 import {
   Alert,
   Animated,
+  Linking,
   Modal,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -509,10 +511,18 @@ const createStyles = (cores: any) =>
     acaoSaveButton: {
       backgroundColor: cores.primary,
     },
+    acaoShareButton: {
+      backgroundColor: cores.warning,
+    },
     acaoButtonText: {
       color: "#fff",
       fontWeight: "bold",
       marginLeft: 8,
+    },
+    acaoButtonsRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginTop: 12,
     },
     observacaoPreview: {
       flex: 1,
@@ -527,6 +537,83 @@ const createStyles = (cores: any) =>
       fontSize: 12,
       color: cores.textSecondary,
       fontStyle: "italic",
+    },
+    compartilharModalContent: {
+      width: "90%",
+      borderRadius: 20,
+      padding: 24,
+      maxHeight: "85%",
+      backgroundColor: cores.card,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.2,
+      shadowRadius: 15,
+      elevation: 8,
+    },
+    compartilharModalTitle: {
+      fontSize: 22,
+      fontWeight: "bold",
+      marginBottom: 8,
+      textAlign: "center",
+      color: cores.text,
+    },
+    compartilharModalSubtitle: {
+      fontSize: 16,
+      marginBottom: 24,
+      textAlign: "center",
+      color: cores.textSecondary,
+      paddingHorizontal: 10,
+    },
+    compartilharOptions: {
+      marginBottom: 20,
+    },
+    compartilharOptionTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      marginBottom: 12,
+      color: cores.text,
+    },
+    compartilharOption: {
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      borderWidth: 1,
+      borderColor: cores.border,
+      borderRadius: 12,
+      marginBottom: 10,
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    compartilharOptionActive: {
+      borderWidth: 2,
+      backgroundColor: `${cores.primary}10`,
+    },
+    compartilharOptionText: {
+      fontSize: 16,
+      color: cores.text,
+      marginLeft: 12,
+    },
+    compartilharButtonsContainer: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginTop: 10,
+    },
+    compartilharButton: {
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      borderRadius: 12,
+      flex: 0.48,
+      alignItems: "center",
+      flexDirection: "row",
+      justifyContent: "center",
+    },
+    compartilharCancelButton: {
+      borderWidth: 1,
+    },
+    compartilharConfirmButton: {
+      backgroundColor: cores.primary,
+    },
+    compartilharButtonIcon: {
+      marginRight: 8,
     },
   });
 
@@ -561,6 +648,10 @@ export default function HomeScreen() {
   const [todasObservacoes, setTodasObservacoes] = useState<{
     [key: string]: string;
   }>({});
+  const [showCompartilharModal, setShowCompartilharModal] = useState(false);
+  const [tipoCompartilhamento, setTipoCompartilhamento] = useState<
+    "todos" | "vencidos" | "proximos7" | "proximos15" | "proximos30"
+  >("todos");
 
   // Determinar o tema baseado no tema do sistema
   const colorScheme = useColorScheme();
@@ -921,6 +1012,183 @@ export default function HomeScreen() {
     setShowAcoesModal(true);
   };
 
+  // Função para abrir o modal de compartilhamento
+  const abrirModalCompartilhamento = () => {
+    setTipoCompartilhamento("todos");
+    setShowCompartilharModal(true);
+  };
+
+  // Função para compartilhar produtos
+  const compartilharProdutos = async (produtos: ProdutoAlerta[]) => {
+    try {
+      if (produtos.length === 0) {
+        Alert.alert("Aviso", "Não há produtos para compartilhar.");
+        return;
+      }
+
+      // Criar texto para compartilhar
+      let mensagem = "📆 *PRODUTOS A VENCER* 📆\n\n";
+
+      // Ordenar produtos por data de validade (do mais próximo ao vencimento ao mais distante)
+      const produtosOrdenados = [...produtos].sort((a, b) => {
+        const diasA = calcularDiasRestantes(a.validade);
+        const diasB = calcularDiasRestantes(b.validade);
+        return diasA - diasB;
+      });
+
+      // Limitar a 15 produtos para não sobrecarregar a mensagem
+      const produtosParaCompartilhar = produtosOrdenados.slice(0, 15);
+
+      produtosParaCompartilhar.forEach((produto, index) => {
+        const diasRestantes = calcularDiasRestantes(produto.validade);
+        const status =
+          diasRestantes < 0
+            ? "❌ VENCIDO"
+            : diasRestantes <= 7
+              ? "⚠️ PRÓXIMO AO VENCIMENTO"
+              : "✅ OK";
+
+        mensagem += `*${index + 1}. ${produto.nome}*\n`;
+        mensagem += `   Validade: ${produto.validade}\n`;
+        mensagem += `   Status: ${status}\n`;
+
+        // Adicionar dias restantes
+        if (diasRestantes < 0) {
+          mensagem += `   Vencido há ${Math.abs(diasRestantes)} dias\n`;
+        } else {
+          mensagem += `   Faltam ${diasRestantes} dias\n`;
+        }
+
+        // Adicionar observações se existirem
+        if (todasObservacoes[produto.id]) {
+          mensagem += `   📝 *Observações:* ${todasObservacoes[produto.id]}\n`;
+        }
+
+        mensagem += "\n";
+      });
+
+      if (produtosOrdenados.length > 15) {
+        mensagem += `... e mais ${produtosOrdenados.length - 15} produtos não exibidos.`;
+      }
+
+      mensagem += "\n_Enviado pelo aplicativo ExpiReAí_";
+
+      // Tentar compartilhar primeiro usando a API de compartilhamento nativa
+      try {
+        await Share.share({
+          message: mensagem,
+        });
+      } catch (error) {
+        // Fallback para compartilhar via WhatsApp diretamente
+        let whatsappUrl = `whatsapp://send?text=${encodeURIComponent(mensagem)}`;
+        const canOpen = await Linking.canOpenURL(whatsappUrl);
+
+        if (canOpen) {
+          await Linking.openURL(whatsappUrl);
+        } else {
+          Alert.alert(
+            "Erro",
+            "Não foi possível abrir o WhatsApp. Verifique se o aplicativo está instalado."
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao compartilhar produtos:", error);
+      Alert.alert(
+        "Erro",
+        "Não foi possível compartilhar os produtos. Tente novamente."
+      );
+    }
+  };
+
+  // Função para filtrar produtos com base na opção selecionada
+  const filtrarProdutosParaCompartilhar = () => {
+    let produtosSelecionados = [...produtosFiltrados];
+
+    if (tipoCompartilhamento === "vencidos") {
+      produtosSelecionados = produtosSelecionados.filter(
+        (produto) => calcularDiasRestantes(produto.validade) < 0
+      );
+    } else if (tipoCompartilhamento === "proximos7") {
+      produtosSelecionados = produtosSelecionados.filter((produto) => {
+        const dias = calcularDiasRestantes(produto.validade);
+        return dias >= 0 && dias <= 7;
+      });
+    } else if (tipoCompartilhamento === "proximos15") {
+      produtosSelecionados = produtosSelecionados.filter((produto) => {
+        const dias = calcularDiasRestantes(produto.validade);
+        return dias >= 0 && dias <= 15;
+      });
+    } else if (tipoCompartilhamento === "proximos30") {
+      produtosSelecionados = produtosSelecionados.filter((produto) => {
+        const dias = calcularDiasRestantes(produto.validade);
+        return dias >= 0 && dias <= 30;
+      });
+    }
+
+    return produtosSelecionados;
+  };
+
+  // Função para compartilhar produtos filtrados
+  const compartilharProdutosFiltrados = async () => {
+    // Filtrar produtos com base na opção selecionada
+    const produtosSelecionados = filtrarProdutosParaCompartilhar();
+
+    // Fechar o modal e compartilhar
+    setShowCompartilharModal(false);
+    compartilharProdutos(produtosSelecionados);
+  };
+
+  // Função para compartilhar um único produto
+  const compartilharProdutoUnico = async () => {
+    if (!produtoSelecionado) return;
+
+    try {
+      // Criar texto para compartilhar
+      let mensagem = "🗓️ *PRODUTO A VENCER* 🗓️\n\n";
+
+      const diasRestantes = calcularDiasRestantes(produtoSelecionado.validade);
+      const status =
+        diasRestantes < 0
+          ? "❌ VENCIDO"
+          : diasRestantes <= 7
+            ? "⚠️ PRÓXIMO AO VENCIMENTO"
+            : "✅ OK";
+
+      mensagem += `*${produtoSelecionado.nome}*\n`;
+      mensagem += `Validade: ${produtoSelecionado.validade}\n`;
+      mensagem += `Status: ${status}\n`;
+
+      // Adicionar dias restantes
+      if (diasRestantes < 0) {
+        mensagem += `Vencido há ${Math.abs(diasRestantes)} dias\n`;
+      } else {
+        mensagem += `Faltam ${diasRestantes} dias\n`;
+      }
+
+      // Adicionar observações se existirem
+      if (observacao) {
+        mensagem += `\n📝 *Observações:* ${observacao}\n`;
+      }
+
+      mensagem += "\n_Enviado pelo aplicativo ExpiReAí_";
+
+      // Compartilhar usando a API nativa
+      await Share.share({
+        message: mensagem,
+      });
+
+      // Fechar o modal após compartilhar
+      setShowAcoesModal(false);
+    } catch (error) {
+      console.error("Erro ao compartilhar produto:", error);
+      Alert.alert(
+        "Erro",
+        "Não foi possível compartilhar o produto. Tente novamente."
+      );
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -938,6 +1206,18 @@ export default function HomeScreen() {
           >
             <FontAwesome name="plus" size={20} color={coresCombinadas.text} />
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={abrirModalCompartilhamento}
+          >
+            <FontAwesome
+              name="share-alt"
+              size={20}
+              color={coresCombinadas.text}
+            />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.headerButton}
             onPress={() => setShowMenuModal(true)}
@@ -1418,9 +1698,25 @@ export default function HomeScreen() {
               />
             )}
 
-            <View style={styles.modalButtonsContainer}>
+            <View style={[styles.modalButtonsContainer, { marginTop: 30 }]}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
+                style={{
+                  backgroundColor: isDark ? "#444" : "#f0f0f0",
+                  paddingVertical: 14,
+                  paddingHorizontal: 20,
+                  borderRadius: 12,
+                  flex: 0.48,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexDirection: "row",
+                  borderWidth: 1,
+                  borderColor: isDark ? "#555" : "#ddd",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 3,
+                  elevation: 2,
+                }}
                 onPress={() => {
                   setShowModal(false);
                   setNomeProduto("");
@@ -1428,14 +1724,34 @@ export default function HomeScreen() {
                   setDate(new Date());
                 }}
               >
-                <Text style={styles.modalButtonText}>Cancelar</Text>
+                <Text style={{ color: cores.text, fontWeight: "bold" }}>
+                  Cancelar
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
+                style={{
+                  backgroundColor: cores.primary,
+                  paddingVertical: 14,
+                  paddingHorizontal: 20,
+                  borderRadius: 12,
+                  flex: 0.48,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexDirection: "row",
+                  borderWidth: 1,
+                  borderColor: cores.primary,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 3,
+                  elevation: 2,
+                }}
                 onPress={handleSaveManual}
               >
-                <Text style={styles.modalButtonText}>Salvar</Text>
+                <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                  Salvar
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1599,7 +1915,44 @@ export default function HomeScreen() {
                   textAlignVertical="top"
                 />
 
-                <View style={styles.acoesButtonContainer}>
+                {/* Botão de compartilhar */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: "#25D366",
+                    borderRadius: 10,
+                    paddingVertical: 15,
+                    paddingHorizontal: 15,
+                    marginTop: 20,
+                    marginBottom: 15,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 3,
+                  }}
+                  onPress={compartilharProdutoUnico}
+                >
+                  <FontAwesome
+                    name="whatsapp"
+                    size={22}
+                    color="#fff"
+                    style={{ marginRight: 10 }}
+                  />
+                  <Text
+                    style={{
+                      color: "#fff",
+                      fontWeight: "bold",
+                      fontSize: 16,
+                    }}
+                  >
+                    Compartilhar via WhatsApp
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={[styles.acaoButtonsRow, { marginTop: 10 }]}>
                   <TouchableOpacity
                     style={[
                       styles.acaoButton,
@@ -1649,6 +2002,227 @@ export default function HomeScreen() {
             )}
           </TouchableOpacity>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Modal de Compartilhamento */}
+      <Modal
+        visible={showCompartilharModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCompartilharModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.compartilharModalContent}>
+            <Text style={styles.compartilharModalTitle}>
+              Compartilhar Produtos
+            </Text>
+
+            <Text style={styles.compartilharModalSubtitle}>
+              Selecione quais produtos deseja compartilhar via WhatsApp:
+            </Text>
+
+            <View style={styles.compartilharOptions}>
+              <Text style={styles.compartilharOptionTitle}>Filtrar por:</Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.compartilharOption,
+                  tipoCompartilhamento === "todos" &&
+                    styles.compartilharOptionActive,
+                  tipoCompartilhamento === "todos" && {
+                    borderColor: cores.primary,
+                  },
+                ]}
+                onPress={() => setTipoCompartilhamento("todos")}
+              >
+                <FontAwesome
+                  name="list"
+                  size={18}
+                  color={
+                    tipoCompartilhamento === "todos"
+                      ? cores.primary
+                      : cores.textSecondary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.compartilharOptionText,
+                    tipoCompartilhamento === "todos" && {
+                      color: cores.primary,
+                      fontWeight: "bold",
+                    },
+                  ]}
+                >
+                  Todos os produtos ({produtosFiltrados.length})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.compartilharOption,
+                  tipoCompartilhamento === "vencidos" &&
+                    styles.compartilharOptionActive,
+                  tipoCompartilhamento === "vencidos" && {
+                    borderColor: cores.danger,
+                  },
+                ]}
+                onPress={() => setTipoCompartilhamento("vencidos")}
+              >
+                <FontAwesome
+                  name="exclamation-circle"
+                  size={18}
+                  color={
+                    tipoCompartilhamento === "vencidos"
+                      ? cores.danger
+                      : cores.textSecondary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.compartilharOptionText,
+                    tipoCompartilhamento === "vencidos" && {
+                      color: cores.danger,
+                      fontWeight: "bold",
+                    },
+                  ]}
+                >
+                  Produtos vencidos
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.compartilharOption,
+                  tipoCompartilhamento === "proximos7" &&
+                    styles.compartilharOptionActive,
+                  tipoCompartilhamento === "proximos7" && {
+                    borderColor: cores.warning,
+                  },
+                ]}
+                onPress={() => setTipoCompartilhamento("proximos7")}
+              >
+                <FontAwesome
+                  name="clock-o"
+                  size={18}
+                  color={
+                    tipoCompartilhamento === "proximos7"
+                      ? cores.warning
+                      : cores.textSecondary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.compartilharOptionText,
+                    tipoCompartilhamento === "proximos7" && {
+                      color: cores.warning,
+                      fontWeight: "bold",
+                    },
+                  ]}
+                >
+                  Próximos 7 dias
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.compartilharOption,
+                  tipoCompartilhamento === "proximos15" &&
+                    styles.compartilharOptionActive,
+                  tipoCompartilhamento === "proximos15" && {
+                    borderColor: cores.warning,
+                  },
+                ]}
+                onPress={() => setTipoCompartilhamento("proximos15")}
+              >
+                <FontAwesome
+                  name="calendar-check-o"
+                  size={18}
+                  color={
+                    tipoCompartilhamento === "proximos15"
+                      ? cores.warning
+                      : cores.textSecondary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.compartilharOptionText,
+                    tipoCompartilhamento === "proximos15" && {
+                      color: cores.warning,
+                      fontWeight: "bold",
+                    },
+                  ]}
+                >
+                  Próximos 15 dias
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.compartilharOption,
+                  tipoCompartilhamento === "proximos30" &&
+                    styles.compartilharOptionActive,
+                  tipoCompartilhamento === "proximos30" && {
+                    borderColor: cores.warning,
+                  },
+                ]}
+                onPress={() => setTipoCompartilhamento("proximos30")}
+              >
+                <FontAwesome
+                  name="calendar"
+                  size={18}
+                  color={
+                    tipoCompartilhamento === "proximos30"
+                      ? cores.warning
+                      : cores.textSecondary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.compartilharOptionText,
+                    tipoCompartilhamento === "proximos30" && {
+                      color: cores.warning,
+                      fontWeight: "bold",
+                    },
+                  ]}
+                >
+                  Próximos 30 dias
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.compartilharButtonsContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.compartilharButton,
+                  styles.compartilharCancelButton,
+                  { borderColor: cores.border },
+                ]}
+                onPress={() => setShowCompartilharModal(false)}
+              >
+                <Text style={{ color: cores.text }}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.compartilharButton,
+                  styles.compartilharConfirmButton,
+                  { backgroundColor: "#25D366" },
+                ]}
+                onPress={compartilharProdutosFiltrados}
+              >
+                <FontAwesome
+                  name="whatsapp"
+                  size={18}
+                  color="#fff"
+                  style={styles.compartilharButtonIcon}
+                />
+                <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                  Compartilhar
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </View>
   );

@@ -357,7 +357,7 @@ export const adicionarEventoAoCalendario = async (
       endDate: dataFim.toISOString(),
       allDay: true,
       description: `O produto ${produto.nome} vence nesta data.`,
-      notes: "Adicionado pelo app ExpiReAi",
+      notes: "Adicionado pelo app ExpireAi",
     };
 
     // Adicionar cor se configurada
