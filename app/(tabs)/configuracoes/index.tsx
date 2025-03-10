@@ -1,4 +1,13 @@
+import { useProdutos } from "@/app/contexts/ProdutosContext";
 import { useTema } from "@/app/contexts/TemaContext";
+import {
+  buscarConfigCalendario,
+  CalendarioConfig,
+  salvarConfigCalendario,
+  sincronizarProdutosExistentes,
+  toggleCalendario,
+  verificarStatusCalendario,
+} from "@/app/services/calendarSync";
 import { useNotifications } from "@/hooks/useNotifications";
 import {
   desregistrarTarefaSegundoPlano,
@@ -26,6 +35,7 @@ import {
 const ConfiguracoesScreen = () => {
   const { tema, mudarTema, cores } = useTema();
   const { scheduleProductNotification } = useNotifications();
+  const { produtos } = useProdutos();
   const router = useRouter();
   const [notificacoesAtivas, setNotificacoesAtivas] = useState(true);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -37,6 +47,10 @@ const ConfiguracoesScreen = () => {
   const [diasAntecedencia, setDiasAntecedencia] = useState("1");
   const [showDiasModal, setShowDiasModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [calendarioAtivo, setCalendarioAtivo] = useState(false);
+  const [showCalendarioModal, setShowCalendarioModal] = useState(false);
+  const [configCalendario, setConfigCalendario] =
+    useState<CalendarioConfig | null>(null);
 
   // Carregar configurações
   const carregarConfiguracoes = useCallback(async () => {
@@ -207,6 +221,124 @@ const ConfiguracoesScreen = () => {
     } catch (error) {
       console.error("Erro ao salvar dias de antecedência:", error);
       Alert.alert("Erro", "Não foi possível salvar sua preferência.");
+    }
+  };
+
+  // Funções de sincronização de calendário
+  const toggleAtivacaoCalendario = async (value: boolean) => {
+    try {
+      if (value) {
+        // Exibir instruções primeiro
+        Alert.alert(
+          "Atenção!",
+          "a sincronização com o calendário do dispositivo é uma funcionalidade experimental, e pode não funcionar corretamente.",
+          [
+            {
+              text: "Continuar",
+              onPress: async () => await doToggleCalendario(value),
+            },
+          ]
+        );
+      } else {
+        await doToggleCalendario(value);
+      }
+    } catch (error) {
+      console.error("Erro ao configurar calendário:", error);
+      Alert.alert("Erro", "Ocorreu um erro ao configurar o calendário.");
+    }
+  };
+
+  // Função auxiliar para ativar/desativar o calendário
+  const doToggleCalendario = async (value: boolean) => {
+    const success = await toggleCalendario(value);
+    if (success) {
+      setCalendarioAtivo(value);
+
+      // Se ativou a sincronização, sincronizar produtos existentes
+      if (value && produtos.length > 0) {
+        // Mostrar loading
+        Alert.alert(
+          "Sincronizando Produtos",
+          "Aguarde enquanto sincronizamos seus produtos existentes com o calendário..."
+        );
+
+        // Sincronizar produtos existentes
+        const quantidadeSincronizada =
+          await sincronizarProdutosExistentes(produtos);
+
+        // Mostrar resultado
+        Alert.alert(
+          "Sincronização Concluída",
+          quantidadeSincronizada > 0
+            ? `${quantidadeSincronizada} produto(s) foram adicionados ao seu calendário!`
+            : "Nenhum produto precisou ser adicionado ao calendário."
+        );
+      } else {
+        Alert.alert(
+          value ? "Sincronização Ativada" : "Sincronização Desativada",
+          value
+            ? "Os novos produtos serão adicionados ao seu calendário."
+            : "Os produtos não serão mais adicionados ao seu calendário."
+        );
+      }
+    } else {
+      Alert.alert(
+        "Erro",
+        "Não foi possível configurar a sincronização com o calendário.\n\nVerifique se as permissões foram concedidas e se a biblioteca está instalada corretamente."
+      );
+    }
+  };
+
+  useEffect(() => {
+    const carregarStatusCalendario = async () => {
+      try {
+        const status = await verificarStatusCalendario();
+        setCalendarioAtivo(status);
+      } catch (error) {
+        console.error("Erro ao carregar status do calendário:", error);
+      }
+    };
+
+    carregarStatusCalendario();
+  }, []);
+
+  // Carregar configurações de calendário
+  useEffect(() => {
+    const carregarConfigCalendario = async () => {
+      try {
+        const config = await buscarConfigCalendario();
+        setConfigCalendario(config);
+      } catch (error) {
+        console.error("Erro ao carregar config do calendário:", error);
+      }
+    };
+
+    carregarConfigCalendario();
+  }, []);
+
+  // Salvar configurações de calendário
+  const salvarConfiguracoesCalendario = async (
+    config: Partial<CalendarioConfig>
+  ) => {
+    try {
+      const sucesso = await salvarConfigCalendario(config);
+      if (sucesso) {
+        // Atualizar estado local
+        setConfigCalendario((prev) => (prev ? { ...prev, ...config } : null));
+        Alert.alert(
+          "Configurações Salvas",
+          "As configurações do calendário foram salvas com sucesso."
+        );
+        setShowCalendarioModal(false);
+      } else {
+        Alert.alert(
+          "Erro",
+          "Não foi possível salvar as configurações do calendário."
+        );
+      }
+    } catch (error) {
+      console.error("Erro ao salvar config do calendário:", error);
+      Alert.alert("Erro", "Ocorreu um erro ao salvar as configurações.");
     }
   };
 
@@ -627,6 +759,95 @@ const ConfiguracoesScreen = () => {
           ]}
         >
           <Text style={[styles.sectionTitle, { color: cores.textSecondary }]}>
+            Sincronização de Calendário
+          </Text>
+          <View style={[styles.menuItem, { backgroundColor: cores.card }]}>
+            <View
+              style={[
+                styles.menuItemIcon,
+                { backgroundColor: cores.primaryLight },
+              ]}
+            >
+              <FontAwesome name="calendar" size={22} color={cores.primary} />
+            </View>
+            <View style={styles.menuItemContent}>
+              <Text style={[styles.menuItemTitle, { color: cores.text }]}>
+                Calendário do Dispositivo
+              </Text>
+              <Text
+                style={[
+                  styles.menuItemDescription,
+                  { color: cores.textSecondary },
+                ]}
+              >
+                {calendarioAtivo
+                  ? "Ativado"
+                  : "Adicionar vencimentos ao calendário do dispositivo"}
+              </Text>
+            </View>
+            <Switch
+              trackColor={{ false: cores.border, true: cores.primary + "80" }}
+              thumbColor={calendarioAtivo ? cores.primary : "#f4f3f4"}
+              onValueChange={toggleAtivacaoCalendario}
+              value={calendarioAtivo}
+            />
+          </View>
+
+          {calendarioAtivo && (
+            <View style={styles.syncOptionsContainer}>
+              <Text style={[styles.syncOptionsTitle, { color: cores.text }]}>
+                Opções de sincronização
+              </Text>
+
+              <View style={styles.syncOptionRow}>
+                <FontAwesome
+                  name="calendar-plus-o"
+                  size={16}
+                  color={cores.primary}
+                  style={styles.syncOptionIcon}
+                />
+                <Text style={[styles.syncOptionText, { color: cores.text }]}>
+                  Adicionar produtos na data de vencimento
+                </Text>
+              </View>
+
+              <View style={styles.syncOptionRow}>
+                <FontAwesome
+                  name="bell"
+                  size={16}
+                  color={cores.primary}
+                  style={styles.syncOptionIcon}
+                />
+                <Text style={[styles.syncOptionText, { color: cores.text }]}>
+                  Lembretes configurados conforme preferências
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.syncConfigButton, { borderColor: cores.border }]}
+                activeOpacity={0.7}
+                onPress={() => setShowCalendarioModal(true)}
+              >
+                <Text
+                  style={[
+                    styles.syncConfigButtonText,
+                    { color: cores.primary },
+                  ]}
+                >
+                  Configurar opções avançadas
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        <View
+          style={[
+            styles.section,
+            { backgroundColor: cores.card, borderColor: cores.border },
+          ]}
+        >
+          <Text style={[styles.sectionTitle, { color: cores.textSecondary }]}>
             Informações
           </Text>
           <TouchableOpacity
@@ -664,6 +885,341 @@ const ConfiguracoesScreen = () => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Modal de Configurações Avançadas do Calendário */}
+      <Modal
+        visible={showCalendarioModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCalendarioModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View
+            style={[styles.configModalContent, { backgroundColor: cores.card }]}
+          >
+            <Text style={[styles.modalTitle, { color: cores.text }]}>
+              Configurações do Calendário
+            </Text>
+
+            {configCalendario && (
+              <ScrollView>
+                {/* Lembretes */}
+                <View style={styles.configSection}>
+                  <Text
+                    style={[styles.configSectionTitle, { color: cores.text }]}
+                  >
+                    Lembretes
+                  </Text>
+
+                  <View style={styles.configItem}>
+                    <Text style={[styles.configLabel, { color: cores.text }]}>
+                      Dias antes
+                    </Text>
+                    <View style={styles.configNumberContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.numberButton,
+                          { borderColor: cores.border },
+                        ]}
+                        onPress={() =>
+                          setConfigCalendario({
+                            ...configCalendario,
+                            lembreteDias: Math.max(
+                              0,
+                              configCalendario.lembreteDias - 1
+                            ),
+                          })
+                        }
+                      >
+                        <Text style={{ color: cores.text, fontSize: 16 }}>
+                          -
+                        </Text>
+                      </TouchableOpacity>
+
+                      <Text style={[styles.numberText, { color: cores.text }]}>
+                        {configCalendario.lembreteDias}
+                      </Text>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.numberButton,
+                          { borderColor: cores.border },
+                        ]}
+                        onPress={() =>
+                          setConfigCalendario({
+                            ...configCalendario,
+                            lembreteDias: Math.min(
+                              7,
+                              configCalendario.lembreteDias + 1
+                            ),
+                          })
+                        }
+                      >
+                        <Text style={{ color: cores.text, fontSize: 16 }}>
+                          +
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.configItem}>
+                    <Text style={[styles.configLabel, { color: cores.text }]}>
+                      Horas antes
+                    </Text>
+                    <View style={styles.configNumberContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.numberButton,
+                          { borderColor: cores.border },
+                        ]}
+                        onPress={() =>
+                          setConfigCalendario({
+                            ...configCalendario,
+                            lembreteHoras: Math.max(
+                              0,
+                              configCalendario.lembreteHoras - 1
+                            ),
+                          })
+                        }
+                      >
+                        <Text style={{ color: cores.text, fontSize: 16 }}>
+                          -
+                        </Text>
+                      </TouchableOpacity>
+
+                      <Text style={[styles.numberText, { color: cores.text }]}>
+                        {configCalendario.lembreteHoras}
+                      </Text>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.numberButton,
+                          { borderColor: cores.border },
+                        ]}
+                        onPress={() =>
+                          setConfigCalendario({
+                            ...configCalendario,
+                            lembreteHoras: Math.min(
+                              23,
+                              configCalendario.lembreteHoras + 1
+                            ),
+                          })
+                        }
+                      >
+                        <Text style={{ color: cores.text, fontSize: 16 }}>
+                          +
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.configItem}>
+                    <Text style={[styles.configLabel, { color: cores.text }]}>
+                      Minutos antes
+                    </Text>
+                    <View style={styles.configNumberContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.numberButton,
+                          { borderColor: cores.border },
+                        ]}
+                        onPress={() =>
+                          setConfigCalendario({
+                            ...configCalendario,
+                            lembreteMinutos: Math.max(
+                              0,
+                              configCalendario.lembreteMinutos - 5
+                            ),
+                          })
+                        }
+                      >
+                        <Text style={{ color: cores.text, fontSize: 16 }}>
+                          -
+                        </Text>
+                      </TouchableOpacity>
+
+                      <Text style={[styles.numberText, { color: cores.text }]}>
+                        {configCalendario.lembreteMinutos}
+                      </Text>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.numberButton,
+                          { borderColor: cores.border },
+                        ]}
+                        onPress={() =>
+                          setConfigCalendario({
+                            ...configCalendario,
+                            lembreteMinutos: Math.min(
+                              55,
+                              configCalendario.lembreteMinutos + 5
+                            ),
+                          })
+                        }
+                      >
+                        <Text style={{ color: cores.text, fontSize: 16 }}>
+                          +
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Tipo de Lembrete */}
+                <View style={styles.configSection}>
+                  <Text
+                    style={[styles.configSectionTitle, { color: cores.text }]}
+                  >
+                    Tipo de Lembrete
+                  </Text>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.optionButton,
+                      configCalendario.tipoLembrete === "padrao" && {
+                        backgroundColor: cores.primaryLight,
+                        borderColor: cores.primary,
+                      },
+                    ]}
+                    onPress={() =>
+                      setConfigCalendario({
+                        ...configCalendario,
+                        tipoLembrete: "padrao",
+                      })
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.optionButtonText,
+                        {
+                          color:
+                            configCalendario.tipoLembrete === "padrao"
+                              ? cores.primary
+                              : cores.text,
+                        },
+                      ]}
+                    >
+                      Padrão
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.optionButton,
+                      configCalendario.tipoLembrete === "email" && {
+                        backgroundColor: cores.primaryLight,
+                        borderColor: cores.primary,
+                      },
+                    ]}
+                    onPress={() =>
+                      setConfigCalendario({
+                        ...configCalendario,
+                        tipoLembrete: "email",
+                      })
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.optionButtonText,
+                        {
+                          color:
+                            configCalendario.tipoLembrete === "email"
+                              ? cores.primary
+                              : cores.text,
+                        },
+                      ]}
+                    >
+                      Email
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.optionButton,
+                      configCalendario.tipoLembrete === "alarme" && {
+                        backgroundColor: cores.primaryLight,
+                        borderColor: cores.primary,
+                      },
+                    ]}
+                    onPress={() =>
+                      setConfigCalendario({
+                        ...configCalendario,
+                        tipoLembrete: "alarme",
+                      })
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.optionButtonText,
+                        {
+                          color:
+                            configCalendario.tipoLembrete === "alarme"
+                              ? cores.primary
+                              : cores.text,
+                        },
+                      ]}
+                    >
+                      Alarme
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Alertas */}
+                <View style={styles.configSection}>
+                  <Text
+                    style={[styles.configSectionTitle, { color: cores.text }]}
+                  >
+                    Alertas
+                  </Text>
+
+                  <View style={styles.switchItem}>
+                    <Text style={[styles.configLabel, { color: cores.text }]}>
+                      Mostrar alerta ao adicionar evento
+                    </Text>
+                    <Switch
+                      trackColor={{
+                        false: cores.border,
+                        true: cores.primary + "80",
+                      }}
+                      thumbColor={
+                        configCalendario.mostrarAlerta
+                          ? cores.primary
+                          : "#f4f3f4"
+                      }
+                      onValueChange={(value) =>
+                        setConfigCalendario({
+                          ...configCalendario,
+                          mostrarAlerta: value,
+                        })
+                      }
+                      value={configCalendario.mostrarAlerta}
+                    />
+                  </View>
+                </View>
+              </ScrollView>
+            )}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: cores.danger }]}
+                onPress={() => setShowCalendarioModal(false)}
+              >
+                <Text style={styles.modalButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: cores.success }]}
+                onPress={() =>
+                  configCalendario &&
+                  salvarConfiguracoesCalendario(configCalendario)
+                }
+              >
+                <Text style={styles.modalButtonText}>Salvar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -814,6 +1370,100 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  syncOptionsContainer: {
+    marginTop: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  syncOptionsTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  syncOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  syncOptionIcon: {
+    marginRight: 12,
+    width: 16,
+  },
+  syncOptionText: {
+    fontSize: 14,
+  },
+  syncConfigButton: {
+    marginTop: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  syncConfigButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  configModalContent: {
+    width: "90%",
+    padding: 20,
+    borderRadius: 16,
+    maxHeight: "80%",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  configSection: {
+    marginBottom: 20,
+  },
+  configSectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  configItem: {
+    marginBottom: 15,
+  },
+  configLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  configNumberContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  numberButton: {
+    width: 40,
+    height: 40,
+    borderWidth: 1,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  numberText: {
+    marginHorizontal: 10,
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  optionButton: {
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    marginBottom: 8,
+  },
+  optionButtonText: {
+    fontSize: 14,
+    textAlign: "center",
+  },
+  switchItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
   },
 });
 

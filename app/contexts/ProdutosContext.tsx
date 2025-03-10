@@ -1,3 +1,4 @@
+import { adicionarEventoAoCalendario } from "@/app/services/calendarSync";
 import { agendarNotificacoesDiarias } from "@/services/notifications.config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
@@ -66,6 +67,12 @@ export function ProdutosProvider({ children }: { children: ReactNode }) {
       const novosProdutos = [...produtos, produto];
       await AsyncStorage.setItem("@produtos", JSON.stringify(novosProdutos));
       setProdutos(novosProdutos);
+
+      // Adicionar ao calendário se a sincronização estiver ativa
+      adicionarEventoAoCalendario(produto).catch((error) => {
+        console.error("Erro ao adicionar produto ao calendário:", error);
+        // Não impedimos o fluxo principal se a adição ao calendário falhar
+      });
     } catch (error) {
       console.error("Erro ao adicionar produto:", error);
     }
