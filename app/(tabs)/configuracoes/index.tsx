@@ -21,6 +21,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Animated,
+  Image,
   Modal,
   RefreshControl,
   ScrollView,
@@ -51,6 +52,8 @@ const ConfiguracoesScreen = () => {
   const [showCalendarioModal, setShowCalendarioModal] = useState(false);
   const [configCalendario, setConfigCalendario] =
     useState<CalendarioConfig | null>(null);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const isDark = tema === "dark";
 
   // Carregar configurações
   const carregarConfiguracoes = useCallback(async () => {
@@ -853,6 +856,7 @@ const ConfiguracoesScreen = () => {
           <TouchableOpacity
             style={[styles.menuItem, { backgroundColor: cores.card }]}
             activeOpacity={0.7}
+            onPress={() => setShowInfoModal(true)}
           >
             <View
               style={[
@@ -864,7 +868,7 @@ const ConfiguracoesScreen = () => {
             </View>
             <View style={styles.menuItemContent}>
               <Text style={[styles.menuItemTitle, { color: cores.text }]}>
-                Sobre o App
+                Sobre o ExpireAi
               </Text>
               <Text
                 style={[
@@ -872,7 +876,7 @@ const ConfiguracoesScreen = () => {
                   { color: cores.textSecondary },
                 ]}
               >
-                Versão 1.0.0
+                Versão 1.4.6
               </Text>
             </View>
             <View style={styles.menuItemArrow}>
@@ -1220,6 +1224,75 @@ const ConfiguracoesScreen = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Informações do App */}
+      <Modal
+        visible={showInfoModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowInfoModal(false)}
+      >
+        <Animated.View
+          style={[
+            styles.modalOverlay,
+            { backgroundColor: isDark ? "rgba(0,0,0,0.8)" : "rgba(0,0,0,0.7)" },
+          ]}
+        >
+          <Animated.View
+            style={[styles.infoModalContent, { backgroundColor: cores.card }]}
+          >
+            <View style={styles.infoHeader}>
+              <Image
+                source={require("@/assets/images/icon.png")}
+                style={styles.infoLogo}
+                resizeMode="contain"
+              />
+              <Text style={[styles.infoTitle, { color: cores.text }]}>
+                ExpireAi
+              </Text>
+              <Text
+                style={[styles.infoVersion, { color: cores.textSecondary }]}
+              >
+                Versão 1.4.6
+              </Text>
+            </View>
+
+            <View style={styles.infoBody}>
+              <Text style={[styles.infoDeveloper, { color: cores.primary }]}>
+                Desenvolvido por Editec Sistemas
+              </Text>
+
+              <Text style={[styles.infoDescription, { color: cores.text }]}>
+                ExpireAi é uma solução inovadora para o gerenciamento de datas
+                de validade, permitindo que você nunca mais se preocupe com
+                produtos vencidos.
+              </Text>
+
+              <Text
+                style={[
+                  styles.infoDescription,
+                  { color: cores.text, marginTop: 10 },
+                ]}
+              >
+                Com tecnologia de reconhecimento avançado e sincronização com
+                calendário, o aplicativo notifica você sobre produtos próximos
+                do vencimento, ajudando a reduzir desperdícios e otimizar o
+                consumo.
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.infoCloseButton,
+                { backgroundColor: cores.primary },
+              ]}
+              onPress={() => setShowInfoModal(false)}
+            >
+              <Text style={styles.infoCloseButtonText}>Fechar</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
+      </Modal>
     </View>
   );
 };
@@ -1464,6 +1537,68 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 15,
+  },
+  infoModalContent: {
+    width: "85%",
+    padding: 0,
+    borderRadius: 16,
+    maxHeight: "70%",
+    overflow: "hidden",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  infoHeader: {
+    alignItems: "center",
+    padding: 20,
+    paddingBottom: 15,
+  },
+  infoLogo: {
+    width: 80,
+    height: 80,
+    marginBottom: 10,
+    borderRadius: 15,
+  },
+  infoTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
+  infoVersion: {
+    fontSize: 14,
+  },
+  infoBody: {
+    padding: 20,
+    paddingTop: 5,
+  },
+  infoDeveloper: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 15,
+    textAlign: "center",
+  },
+  infoDescription: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+  },
+  infoCloseButton: {
+    padding: 15,
+    alignItems: "center",
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  infoCloseButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 

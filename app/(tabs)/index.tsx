@@ -1,7 +1,9 @@
-import { useProdutos } from "@/app/contexts/ProdutosContext";
+import { ProdutoAlerta, useProdutos } from "@/app/contexts/ProdutosContext";
 import { useTema } from "@/app/contexts/TemaContext";
 import { FontAwesome } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { useNavigation } from "@react-navigation/native";
 import React, {
   useCallback,
   useEffect,
@@ -387,6 +389,145 @@ const createStyles = (cores: any) =>
       fontWeight: "bold",
       color: "#fff",
     },
+    modalOverlay: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: "rgba(0,0,0,0.5)",
+    },
+    observacoesModalContent: {
+      width: "90%",
+      borderRadius: 12,
+      padding: 20,
+      maxHeight: "80%",
+    },
+    observacoesTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      marginBottom: 15,
+      textAlign: "center",
+    },
+    observacoesProdutoInfo: {
+      marginBottom: 15,
+      paddingBottom: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: "#ddd",
+    },
+    observacoesProdutoNome: {
+      fontSize: 16,
+      fontWeight: "600",
+      marginBottom: 5,
+    },
+    observacoesProdutoData: {
+      fontSize: 14,
+    },
+    observacoesInput: {
+      borderWidth: 1,
+      borderRadius: 8,
+      padding: 12,
+      height: 120,
+      fontSize: 16,
+      marginBottom: 20,
+    },
+    observacoesButtons: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+    },
+    observacoesButton: {
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      borderRadius: 8,
+      flex: 0.48,
+      alignItems: "center",
+    },
+    observacoesCancelButton: {
+      borderWidth: 1,
+    },
+    observacoesSaveButton: {
+      borderWidth: 0,
+    },
+    acoesModalContent: {
+      width: "90%",
+      borderRadius: 16,
+      overflow: "hidden",
+      maxHeight: "80%",
+    },
+    acoesModalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: cores.border,
+    },
+    acoesModalTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+    },
+    closeButton: {
+      padding: 4,
+    },
+    produtoDetalhes: {
+      padding: 20,
+    },
+    produtoDetalheNome: {
+      fontSize: 20,
+      fontWeight: "bold",
+      marginBottom: 6,
+    },
+    produtoDetalheValidade: {
+      fontSize: 16,
+      marginBottom: 20,
+    },
+    divider: {
+      height: 1,
+      marginVertical: 15,
+    },
+    observacoesLabel: {
+      fontSize: 16,
+      fontWeight: "600",
+      marginBottom: 10,
+    },
+    acoesButtonContainer: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginTop: 20,
+    },
+    acaoButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      borderRadius: 8,
+      flex: 0.48,
+    },
+    acaoDeleteButton: {
+      backgroundColor: cores.danger,
+    },
+    acaoSaveButton: {
+      backgroundColor: cores.primary,
+    },
+    acaoButtonText: {
+      color: "#fff",
+      fontWeight: "bold",
+      marginLeft: 8,
+    },
+    observacaoPreview: {
+      flex: 1,
+      marginLeft: 8,
+      justifyContent: "center",
+      maxWidth: "30%",
+      borderLeftWidth: 1,
+      borderLeftColor: cores.border,
+      paddingLeft: 8,
+    },
+    observacaoPreviewText: {
+      fontSize: 12,
+      color: cores.textSecondary,
+      fontStyle: "italic",
+    },
   });
 
 export default function HomeScreen() {
@@ -412,6 +553,14 @@ export default function HomeScreen() {
   >([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showObservacoesModal, setShowObservacoesModal] = useState(false);
+  const [produtoSelecionado, setProdutoSelecionado] =
+    useState<ProdutoAlerta | null>(null);
+  const [observacao, setObservacao] = useState("");
+  const [showAcoesModal, setShowAcoesModal] = useState(false);
+  const [todasObservacoes, setTodasObservacoes] = useState<{
+    [key: string]: string;
+  }>({});
 
   // Determinar o tema baseado no tema do sistema
   const colorScheme = useColorScheme();
@@ -454,6 +603,8 @@ export default function HomeScreen() {
 
   // Criar os estilos usando as cores do tema
   const styles = createStyles(coresCombinadas);
+
+  const navigation = useNavigation<any>();
 
   useEffect(() => {
     carregarProdutos();
@@ -681,6 +832,95 @@ export default function HomeScreen() {
     setShowMenuModal(false);
   };
 
+  // Função para abrir o modal de observações de um produto
+  const abrirObservacoesModal = (produto: ProdutoAlerta) => {
+    setProdutoSelecionado(produto);
+    // Carregar observação existente, se houver
+    carregarObservacao(produto.id);
+    setShowObservacoesModal(true);
+  };
+
+  // Função para carregar a observação de um produto
+  const carregarObservacao = async (produtoId: string) => {
+    try {
+      const observacaoSalva = await AsyncStorage.getItem(
+        `@observacao_${produtoId}`
+      );
+      setObservacao(observacaoSalva || "");
+    } catch (error) {
+      console.error("Erro ao carregar observação:", error);
+      setObservacao("");
+    }
+  };
+
+  // Função para salvar a observação
+  const salvarObservacao = async () => {
+    try {
+      if (!produtoSelecionado) return;
+
+      await AsyncStorage.setItem(
+        `@observacao_${produtoSelecionado.id}`,
+        observacao
+      );
+
+      // Atualizar o objeto de todas as observações
+      setTodasObservacoes((prev) => ({
+        ...prev,
+        [produtoSelecionado.id]: observacao,
+      }));
+
+      Alert.alert(
+        "Observação Salva",
+        "A observação do produto foi salva com sucesso."
+      );
+      setShowAcoesModal(false);
+      setShowObservacoesModal(false);
+    } catch (error) {
+      console.error("Erro ao salvar observação:", error);
+      Alert.alert(
+        "Erro",
+        "Não foi possível salvar a observação. Tente novamente."
+      );
+    }
+  };
+
+  // Função para carregar todas as observações quando a lista de produtos for carregada
+  const carregarTodasObservacoes = async () => {
+    try {
+      const observacoesObj: { [key: string]: string } = {};
+      for (const produto of produtos) {
+        const observacao = await AsyncStorage.getItem(
+          `@observacao_${produto.id}`
+        );
+        if (observacao) {
+          observacoesObj[produto.id] = observacao;
+        }
+      }
+      setTodasObservacoes(observacoesObj);
+    } catch (error) {
+      console.error("Erro ao carregar observações:", error);
+    }
+  };
+
+  // Chamar a função para carregar todas as observações quando os produtos mudarem
+  useEffect(() => {
+    carregarTodasObservacoes();
+  }, [produtos]);
+
+  // Função para limitar o tamanho do texto das observações
+  const limitarTexto = (texto: string, limite: number) => {
+    if (!texto) return "";
+    if (texto.length <= limite) return texto;
+    return texto.substring(0, limite) + "...";
+  };
+
+  // Modificar a função que é chamada ao clicar no produto
+  const handleProdutoPress = (produto: ProdutoAlerta) => {
+    setProdutoSelecionado(produto);
+    carregarObservacao(produto.id);
+    setShowAcoesModal(true);
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -743,7 +983,12 @@ export default function HomeScreen() {
             const statusColor = getStatusColor(diasRestantes);
 
             return (
-              <View key={produto.id} style={styles.produtoCard}>
+              <TouchableOpacity
+                style={[styles.produtoCard, { backgroundColor: cores.card }]}
+                key={produto.id}
+                onPress={() => handleProdutoPress(produto)}
+                onLongPress={() => abrirObservacoesModal(produto)}
+              >
                 <View
                   style={[
                     styles.statusIndicator,
@@ -761,17 +1006,19 @@ export default function HomeScreen() {
                       : `${diasRestantes} dias restantes`}
                   </Text>
                 </View>
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={() => removerProduto(produto.id)}
-                >
-                  <FontAwesome
-                    name="trash"
-                    size={20}
-                    color={coresCombinadas.danger}
-                  />
-                </TouchableOpacity>
-              </View>
+
+                {/* Exibir observações se houver */}
+                {todasObservacoes[produto.id] && (
+                  <View style={styles.observacaoPreview}>
+                    <Text
+                      style={styles.observacaoPreviewText}
+                      numberOfLines={2}
+                    >
+                      {limitarTexto(todasObservacoes[produto.id], 50)}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             );
           })
         )}
@@ -1144,7 +1391,10 @@ export default function HomeScreen() {
 
             <Text style={styles.inputLabel}>Data de Validade</Text>
             <TouchableOpacity
-              style={styles.dateInput}
+              style={[
+                styles.dateInput,
+                { backgroundColor: cores.card, borderColor: cores.border },
+              ]}
               onPress={() => setShowDatePicker(true)}
             >
               <Text
@@ -1191,7 +1441,215 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Observações */}
+      <Modal
+        visible={showObservacoesModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowObservacoesModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.observacoesModalContent,
+              { backgroundColor: cores.card },
+            ]}
+          >
+            <Text style={[styles.observacoesTitle, { color: cores.text }]}>
+              Observações
+            </Text>
+
+            {produtoSelecionado && (
+              <View style={styles.observacoesProdutoInfo}>
+                <Text
+                  style={[styles.observacoesProdutoNome, { color: cores.text }]}
+                >
+                  {produtoSelecionado.nome}
+                </Text>
+                <Text
+                  style={[
+                    styles.observacoesProdutoData,
+                    { color: cores.textSecondary },
+                  ]}
+                >
+                  Validade: {produtoSelecionado.validade}
+                </Text>
+              </View>
+            )}
+
+            <TextInput
+              style={[
+                styles.observacoesInput,
+                {
+                  backgroundColor: cores.background,
+                  color: cores.text,
+                  borderColor: cores.border,
+                },
+              ]}
+              value={observacao}
+              onChangeText={setObservacao}
+              placeholder="Digite suas observações sobre este produto..."
+              placeholderTextColor={cores.textSecondary}
+              multiline={true}
+              numberOfLines={5}
+              textAlignVertical="top"
+            />
+
+            <View style={styles.observacoesButtons}>
+              <TouchableOpacity
+                style={[
+                  styles.observacoesButton,
+                  styles.observacoesCancelButton,
+                  { borderColor: cores.border },
+                ]}
+                onPress={() => setShowObservacoesModal(false)}
+              >
+                <Text style={{ color: cores.text }}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.observacoesButton,
+                  styles.observacoesSaveButton,
+                  { backgroundColor: cores.primary },
+                ]}
+                onPress={salvarObservacao}
+              >
+                <Text style={{ color: "#fff" }}>Salvar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Ações do Produto */}
+      <Modal
+        visible={showAcoesModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowAcoesModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAcoesModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={[styles.acoesModalContent, { backgroundColor: cores.card }]}
+          >
+            <View style={styles.acoesModalHeader}>
+              <Text style={[styles.acoesModalTitle, { color: cores.text }]}>
+                Detalhes do Produto
+              </Text>
+
+              <TouchableOpacity
+                onPress={() => setShowAcoesModal(false)}
+                style={styles.closeButton}
+              >
+                <FontAwesome
+                  name="times"
+                  size={20}
+                  color={cores.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {produtoSelecionado && (
+              <View style={styles.produtoDetalhes}>
+                <Text
+                  style={[styles.produtoDetalheNome, { color: cores.text }]}
+                >
+                  {produtoSelecionado.nome}
+                </Text>
+                <Text
+                  style={[
+                    styles.produtoDetalheValidade,
+                    { color: cores.textSecondary },
+                  ]}
+                >
+                  Validade: {produtoSelecionado.validade}
+                </Text>
+
+                <View
+                  style={[styles.divider, { backgroundColor: cores.border }]}
+                />
+
+                <Text style={[styles.observacoesLabel, { color: cores.text }]}>
+                  Observações:
+                </Text>
+
+                <TextInput
+                  style={[
+                    styles.observacoesInput,
+                    {
+                      backgroundColor: cores.background,
+                      color: cores.text,
+                      borderColor: cores.border,
+                    },
+                  ]}
+                  value={observacao}
+                  onChangeText={setObservacao}
+                  placeholder="Adicione informações importantes sobre este produto..."
+                  placeholderTextColor={cores.textSecondary}
+                  multiline={true}
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+
+                <View style={styles.acoesButtonContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.acaoButton,
+                      styles.acaoDeleteButton,
+                      { backgroundColor: cores.danger },
+                    ]}
+                    onPress={() => {
+                      Alert.alert(
+                        "Confirmar Exclusão",
+                        "Tem certeza que deseja excluir este produto?",
+                        [
+                          {
+                            text: "Cancelar",
+                            style: "cancel",
+                          },
+                          {
+                            text: "Excluir",
+                            style: "destructive",
+                            onPress: () => {
+                              if (produtoSelecionado) {
+                                removerProduto(produtoSelecionado.id);
+                                setShowAcoesModal(false);
+                              }
+                            },
+                          },
+                        ]
+                      );
+                    }}
+                  >
+                    <FontAwesome name="trash" size={16} color="#fff" />
+                    <Text style={styles.acaoButtonText}>Excluir</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.acaoButton,
+                      styles.acaoSaveButton,
+                      { backgroundColor: cores.primary },
+                    ]}
+                    onPress={salvarObservacao}
+                  >
+                    <FontAwesome name="save" size={16} color="#fff" />
+                    <Text style={styles.acaoButtonText}>Salvar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
-
