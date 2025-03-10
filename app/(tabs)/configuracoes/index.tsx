@@ -8,10 +8,12 @@ import { FontAwesome } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router/";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
+  Animated,
   Modal,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Switch,
@@ -34,37 +36,42 @@ const ConfiguracoesScreen = () => {
   );
   const [diasAntecedencia, setDiasAntecedencia] = useState("1");
   const [showDiasModal, setShowDiasModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Carregar configurações
-  useEffect(() => {
-    const carregarConfiguracoes = async () => {
-      try {
-        const estado = await AsyncStorage.getItem("@notificacoes_ativas");
-        setNotificacoesAtivas(estado !== "false");
+  const carregarConfiguracoes = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      const estado = await AsyncStorage.getItem("@notificacoes_ativas");
+      setNotificacoesAtivas(estado !== "false");
 
-        const horarioSalvo = await AsyncStorage.getItem("@horario_notificacao");
-        if (horarioSalvo) {
-          setHorarioNotificacao(Number(horarioSalvo));
-        }
-
-        const diasSalvos = await AsyncStorage.getItem("@dias_antecedencia");
-        if (diasSalvos) {
-          setDiasAntecedencia(diasSalvos);
-        }
-
-        const avisarNoDia = await AsyncStorage.getItem("@avisar_no_dia");
-        setAvisarNoDiaVencimento(avisarNoDia !== "false");
-
-        const verificacaoSegundoPlanoSalva = await AsyncStorage.getItem(
-          "@verificacao_segundo_plano"
-        );
-        setVerificacaoSegundoPlano(verificacaoSegundoPlanoSalva !== "false");
-      } catch (error) {
-        console.error("Erro ao carregar configurações:", error);
+      const horarioSalvo = await AsyncStorage.getItem("@horario_notificacao");
+      if (horarioSalvo) {
+        setHorarioNotificacao(Number(horarioSalvo));
       }
-    };
-    carregarConfiguracoes();
+
+      const diasSalvos = await AsyncStorage.getItem("@dias_antecedencia");
+      if (diasSalvos) {
+        setDiasAntecedencia(diasSalvos);
+      }
+
+      const avisarNoDia = await AsyncStorage.getItem("@avisar_no_dia");
+      setAvisarNoDiaVencimento(avisarNoDia !== "false");
+
+      const verificacaoSegundoPlanoSalva = await AsyncStorage.getItem(
+        "@verificacao_segundo_plano"
+      );
+      setVerificacaoSegundoPlano(verificacaoSegundoPlanoSalva !== "false");
+    } catch (error) {
+      console.error("Erro ao carregar configurações:", error);
+    } finally {
+      setRefreshing(false);
+    }
   }, []);
+
+  useEffect(() => {
+    carregarConfiguracoes();
+  }, [carregarConfiguracoes]);
 
   // Salvar estado das notificações
   const toggleNotificacoes = async (value: boolean) => {
@@ -226,6 +233,15 @@ const ConfiguracoesScreen = () => {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollViewContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={carregarConfiguracoes}
+            colors={[cores.primary]}
+            tintColor={cores.primary}
+          />
+        }
       >
         <View
           style={[
@@ -244,7 +260,7 @@ const ConfiguracoesScreen = () => {
                 { backgroundColor: cores.primaryLight },
               ]}
             >
-              <FontAwesome name="bell" size={24} color={cores.primary} />
+              <FontAwesome name="bell" size={22} color={cores.primary} />
             </View>
             <View style={styles.menuItemContent}>
               <Text style={[styles.menuItemTitle, { color: cores.text }]}>
@@ -274,6 +290,7 @@ const ConfiguracoesScreen = () => {
               <TouchableOpacity
                 style={[styles.menuItem, { backgroundColor: cores.card }]}
                 onPress={() => setShowTimePicker(true)}
+                activeOpacity={0.7}
               >
                 <View
                   style={[
@@ -281,7 +298,7 @@ const ConfiguracoesScreen = () => {
                     { backgroundColor: cores.primaryLight },
                   ]}
                 >
-                  <FontAwesome name="clock-o" size={24} color={cores.primary} />
+                  <FontAwesome name="clock-o" size={22} color={cores.primary} />
                 </View>
                 <View style={styles.menuItemContent}>
                   <Text style={[styles.menuItemTitle, { color: cores.text }]}>
@@ -296,17 +313,20 @@ const ConfiguracoesScreen = () => {
                     {formatarHora(horarioNotificacao)}
                   </Text>
                 </View>
-                <FontAwesome
-                  name="chevron-right"
-                  size={16}
-                  color={cores.textSecondary}
-                />
+                <View style={styles.menuItemArrow}>
+                  <FontAwesome
+                    name="chevron-right"
+                    size={16}
+                    color={cores.textSecondary}
+                  />
+                </View>
               </TouchableOpacity>
 
               {/* Opção para configurar dias de antecedência */}
               <TouchableOpacity
                 style={[styles.menuItem, { backgroundColor: cores.card }]}
                 onPress={() => setShowDiasModal(true)}
+                activeOpacity={0.7}
               >
                 <View
                   style={[
@@ -316,7 +336,7 @@ const ConfiguracoesScreen = () => {
                 >
                   <FontAwesome
                     name="calendar"
-                    size={24}
+                    size={22}
                     color={cores.primary}
                   />
                 </View>
@@ -333,11 +353,13 @@ const ConfiguracoesScreen = () => {
                     Avisar {diasAntecedencia} dia(s) antes do vencimento
                   </Text>
                 </View>
-                <FontAwesome
-                  name="chevron-right"
-                  size={16}
-                  color={cores.textSecondary}
-                />
+                <View style={styles.menuItemArrow}>
+                  <FontAwesome
+                    name="chevron-right"
+                    size={16}
+                    color={cores.textSecondary}
+                  />
+                </View>
               </TouchableOpacity>
 
               {/* Opção para ativar/desativar aviso no dia do vencimento */}
@@ -350,7 +372,7 @@ const ConfiguracoesScreen = () => {
                 >
                   <FontAwesome
                     name="exclamation"
-                    size={24}
+                    size={22}
                     color={cores.primary}
                   />
                 </View>
@@ -386,7 +408,7 @@ const ConfiguracoesScreen = () => {
                     { backgroundColor: cores.primaryLight },
                   ]}
                 >
-                  <FontAwesome name="refresh" size={24} color={cores.primary} />
+                  <FontAwesome name="refresh" size={22} color={cores.primary} />
                 </View>
                 <View style={styles.menuItemContent}>
                   <Text style={[styles.menuItemTitle, { color: cores.text }]}>
@@ -429,7 +451,7 @@ const ConfiguracoesScreen = () => {
               { backgroundColor: "rgba(0, 0, 0, 0.5)" },
             ]}
           >
-            <View
+            <Animated.View
               style={[styles.modalContent, { backgroundColor: cores.card }]}
             >
               <Text style={[styles.modalTitle, { color: cores.text }]}>
@@ -463,6 +485,7 @@ const ConfiguracoesScreen = () => {
                 <TouchableOpacity
                   style={[
                     styles.modalButton,
+                    styles.cancelButton,
                     { backgroundColor: cores.danger },
                   ]}
                   onPress={() => setShowDiasModal(false)}
@@ -472,6 +495,7 @@ const ConfiguracoesScreen = () => {
                 <TouchableOpacity
                   style={[
                     styles.modalButton,
+                    styles.saveButton,
                     { backgroundColor: cores.success },
                   ]}
                   onPress={() => salvarDiasAntecedencia(diasAntecedencia)}
@@ -479,7 +503,7 @@ const ConfiguracoesScreen = () => {
                   <Text style={styles.modalButtonText}>Salvar</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
           </View>
         </Modal>
 
@@ -505,6 +529,7 @@ const ConfiguracoesScreen = () => {
           <TouchableOpacity
             style={[styles.menuItem, { backgroundColor: cores.card }]}
             onPress={() => mudarTema("light")}
+            activeOpacity={0.7}
           >
             <View
               style={[
@@ -512,7 +537,7 @@ const ConfiguracoesScreen = () => {
                 { backgroundColor: cores.primaryLight },
               ]}
             >
-              <FontAwesome name="sun-o" size={24} color={cores.primary} />
+              <FontAwesome name="sun-o" size={22} color={cores.primary} />
             </View>
             <View style={styles.menuItemContent}>
               <Text style={[styles.menuItemTitle, { color: cores.text }]}>
@@ -535,6 +560,7 @@ const ConfiguracoesScreen = () => {
           <TouchableOpacity
             style={[styles.menuItem, { backgroundColor: cores.card }]}
             onPress={() => mudarTema("dark")}
+            activeOpacity={0.7}
           >
             <View
               style={[
@@ -542,7 +568,7 @@ const ConfiguracoesScreen = () => {
                 { backgroundColor: cores.primaryLight },
               ]}
             >
-              <FontAwesome name="moon-o" size={24} color={cores.primary} />
+              <FontAwesome name="moon-o" size={22} color={cores.primary} />
             </View>
             <View style={styles.menuItemContent}>
               <Text style={[styles.menuItemTitle, { color: cores.text }]}>
@@ -565,6 +591,7 @@ const ConfiguracoesScreen = () => {
           <TouchableOpacity
             style={[styles.menuItem, { backgroundColor: cores.card }]}
             onPress={() => mudarTema("system")}
+            activeOpacity={0.7}
           >
             <View
               style={[
@@ -572,7 +599,7 @@ const ConfiguracoesScreen = () => {
                 { backgroundColor: cores.primaryLight },
               ]}
             >
-              <FontAwesome name="mobile" size={24} color={cores.primary} />
+              <FontAwesome name="mobile" size={22} color={cores.primary} />
             </View>
             <View style={styles.menuItemContent}>
               <Text style={[styles.menuItemTitle, { color: cores.text }]}>
@@ -600,88 +627,11 @@ const ConfiguracoesScreen = () => {
           ]}
         >
           <Text style={[styles.sectionTitle, { color: cores.textSecondary }]}>
-            Reconhecimento de Etiquetas
-          </Text>
-          <TouchableOpacity
-            style={[styles.menuItem, { backgroundColor: cores.card }]}
-            onPress={() => router.push("/treinamento")}
-          >
-            <View
-              style={[
-                styles.menuItemIcon,
-                { backgroundColor: cores.primaryLight },
-              ]}
-            >
-              <FontAwesome
-                name="graduation-cap"
-                size={24}
-                color={cores.primary}
-              />
-            </View>
-            <View style={styles.menuItemContent}>
-              <Text style={[styles.menuItemTitle, { color: cores.text }]}>
-                Treinar Reconhecimento
-              </Text>
-              <Text
-                style={[
-                  styles.menuItemDescription,
-                  { color: cores.textSecondary },
-                ]}
-              >
-                Ensine o app a reconhecer melhor suas etiquetas
-              </Text>
-            </View>
-            <FontAwesome
-              name="chevron-right"
-              size={16}
-              color={cores.textSecondary}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.menuItem, { backgroundColor: cores.card }]}
-            onPress={() => router.push("/padroes")}
-          >
-            <View
-              style={[
-                styles.menuItemIcon,
-                { backgroundColor: cores.primaryLight },
-              ]}
-            >
-              <FontAwesome name="list" size={24} color={cores.primary} />
-            </View>
-            <View style={styles.menuItemContent}>
-              <Text style={[styles.menuItemTitle, { color: cores.text }]}>
-                Padrões Salvos
-              </Text>
-              <Text
-                style={[
-                  styles.menuItemDescription,
-                  { color: cores.textSecondary },
-                ]}
-              >
-                Gerenciar padrões de etiquetas salvos
-              </Text>
-            </View>
-            <FontAwesome
-              name="chevron-right"
-              size={16}
-              color={cores.textSecondary}
-            />
-          </TouchableOpacity>
-        </View>
-
-        <View
-          style={[
-            styles.section,
-            { backgroundColor: cores.card, borderColor: cores.border },
-          ]}
-        >
-          <Text style={[styles.sectionTitle, { color: cores.textSecondary }]}>
             Informações
           </Text>
           <TouchableOpacity
             style={[styles.menuItem, { backgroundColor: cores.card }]}
+            activeOpacity={0.7}
           >
             <View
               style={[
@@ -689,7 +639,7 @@ const ConfiguracoesScreen = () => {
                 { backgroundColor: cores.primaryLight },
               ]}
             >
-              <FontAwesome name="info-circle" size={24} color={cores.primary} />
+              <FontAwesome name="info-circle" size={22} color={cores.primary} />
             </View>
             <View style={styles.menuItemContent}>
               <Text style={[styles.menuItemTitle, { color: cores.text }]}>
@@ -704,11 +654,13 @@ const ConfiguracoesScreen = () => {
                 Versão 1.0.0
               </Text>
             </View>
-            <FontAwesome
-              name="chevron-right"
-              size={16}
-              color={cores.textSecondary}
-            />
+            <View style={styles.menuItemArrow}>
+              <FontAwesome
+                name="chevron-right"
+                size={16}
+                color={cores.textSecondary}
+              />
+            </View>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -728,6 +680,7 @@ const styles = StyleSheet.create({
     marginTop: 40,
     flexDirection: "row",
     alignItems: "center",
+    elevation: 2,
   },
   headerContent: {
     flexDirection: "row",
@@ -745,28 +698,45 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginLeft: 12,
   },
+  scrollView: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    paddingBottom: 24,
+  },
   section: {
+    marginHorizontal: 16,
     marginTop: 24,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    paddingVertical: 8,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    overflow: "hidden",
   },
   sectionTitle: {
     fontSize: 14,
     fontWeight: "600",
     marginLeft: 16,
-    marginBottom: 8,
+    marginBottom: 12,
     textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
+    borderRadius: 8,
+    marginHorizontal: 8,
+    marginVertical: 4,
   },
   menuItemIcon: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
@@ -783,8 +753,9 @@ const styles = StyleSheet.create({
   menuItemDescription: {
     fontSize: 14,
   },
-  scrollView: {
-    flex: 1,
+  menuItemArrow: {
+    width: 24,
+    alignItems: "center",
   },
   modalContainer: {
     flex: 1,
@@ -792,28 +763,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalContent: {
-    width: "80%",
-    padding: 20,
-    borderRadius: 12,
+    width: "85%",
+    padding: 24,
+    borderRadius: 16,
     elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "bold",
-    marginBottom: 10,
+    marginBottom: 12,
     textAlign: "center",
   },
   modalDescription: {
     fontSize: 16,
     marginBottom: 20,
     textAlign: "center",
+    lineHeight: 22,
   },
   input: {
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 14,
     fontSize: 16,
-    marginBottom: 20,
+    marginBottom: 24,
     textAlign: "center",
   },
   modalButtons: {
@@ -822,10 +798,17 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    marginHorizontal: 5,
+    padding: 14,
+    borderRadius: 12,
+    marginHorizontal: 6,
     alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelButton: {
+    backgroundColor: "#FF6B6B",
+  },
+  saveButton: {
+    backgroundColor: "#4CAF50",
   },
   modalButtonText: {
     color: "white",
